@@ -162,7 +162,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 .edge-h::after{content:'';position:absolute;inset:9px;border-radius:50%;background:var(--accent-bright)}
 #edgeHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(120px + env(safe-area-inset-bottom));
   z-index:4;background:rgba(10,14,11,.66);color:#CFE8DB;font-size:11px;padding:5px 12px;border-radius:99px;
-  white-space:nowrap;display:none;letter-spacing:.05em}
+  white-space:nowrap;display:none;letter-spacing:.05em;max-width:86%;overflow:hidden;text-overflow:ellipsis}
 #edgeStat{position:absolute;right:12px;bottom:calc(120px + env(safe-area-inset-bottom));z-index:4;
   font-family:'Space Grotesk',monospace;font-size:9px;letter-spacing:.1em;color:rgba(62,213,152,.75);
   background:rgba(10,14,11,.5);padding:3px 8px;border-radius:99px;display:none}
@@ -282,7 +282,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='1.9.1';
+window.__VER='2.0';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -389,14 +389,14 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V1.9.1</div>
+    <div id="verTag">V2.0</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
 
     <div id="emptyState">
       <div class="es-frame"></div>
       <div class="es-title">对准即拍 · 框内即所得</div>
-      <div class="es-desc" id="esDesc">当前文档：「扫描件」<br>Canny 边缘引擎实时锁定纸张轮廓，<br>快门只保留框内内容。</div>
+      <div class="es-desc" id="esDesc">当前文档：「扫描件」<br>白色区域分割引擎实时锁定纸张，<br>快门只保留白纸区域内容。</div>
       <div class="es-tag">100% ON-DEVICE · ZERO UPLOAD</div>
     </div>
 
@@ -433,8 +433,8 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div class="edge-h" data-i="0"></div><div class="edge-h" data-i="1"></div>
     <div class="edge-h" data-i="2"></div><div class="edge-h" data-i="3"></div>
   </div>
-  <div id="edgeHint">正在寻找纸张边缘…</div>
-  <div id="edgeStat">EDGE·WORKER</div>
+  <div id="edgeHint">正在识别白纸区域…</div>
+  <div id="edgeStat">SEG·WORKER</div>
   <div class="cam-top">
     <button id="camClose" class="icon-btn" style="color:#fff"><svg class="ic"><use href="#i-x"/></svg></button>
     <div class="cam-tip" id="camDocTip">对准文档 · 绿框自动锁定白纸</div>
@@ -598,7 +598,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
-    <div class="card-title">诊断与帮助 <span style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v1.9.1</span></div>
+    <div class="card-title">诊断与帮助 <span style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.0</span></div>
 
     <label class="f-label" style="margin-top:0">环境自检</label>
     <div id="dgList"></div>
@@ -612,10 +612,10 @@ document.getElementById('fatalCopy').onclick=async function(){
 
     <label class="f-label">常见问题</label>
     <div class="help-list">
-      <p><b>识别引擎是什么？</b>采用 Canny 边缘检测 + 凸包四边形拟合的多重验证引擎，在独立 Worker 线程每 190ms 分析一帧；快门瞬间还会以更高分辨率做一次精检再裁剪。绿框实线=高置信，虚线=待确认。</p>
-      <p><b>框不准怎么办？</b>直接拖动四个角点手动框选（转为手动模式），点左下「框选·自动」恢复自动识别；「框选·关」则拍全图。</p>
+      <p><b>识别引擎是什么？</b>v2.0 采用「白色区域分割」引擎（类似魔术棒）：按容差阈值选出亮色区域 → 填充字迹孔洞 → 取最大白色连通块 → 生成预选框，再与 Canny 边缘法竞争取优。纸张出框、占满画面也能识别。</p>
+      <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可拖动四个角点手动框选。</p>
       <p><b>拍错一张怎么办？</b>右下角缩略图点红色 × 即撤销重拍；无视它继续按快门就是下一张。</p>
-      <p><b>彩色 / 扫描？</b>「彩色」只裁剪保原色；「扫描」=裁剪+去阴影白底。切换在图片下方工具条，作用于当前页并作为新页默认。</p>
+      <p><b>彩色 / 扫描？</b>「彩色」只裁剪保原色；「扫描」=裁剪+去阴影白底。切换在图片下方工具条。</p>
       <p><b>文件包怎么用？</b>右上角 📁：拍完一份 → 新建一份自动切换；导出只导出当前文档。</p>
       <p><b>系统授权了还是打不开相机？</b>浏览器把「拒绝」记在浏览器内部，需在浏览器内改回允许：地址栏 🔒 → 权限 → 摄像头 → 允许。</p>
       <p><b>怎么发给微信？</b>导出 → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
@@ -673,8 +673,10 @@ refreshCamPerm();
 setInterval(refreshCamPerm,8000);
 
 /* ================================================================
-   CV 检测引擎 v2（纯函数，主线程与 Worker 共享）
-   Canny 边缘 → 连通域 → 凸包 → 四边形拟合 → 多重验证打分
+   CV 引擎（纯函数，主线程与 Worker 共享）
+   主检测：白色区域分割（阈值 + 孔洞填充 + 最大连通块 + 预选框）
+   辅检测：Canny 边缘 + 凸包四边形拟合
+   两者打分竞争取优
    ================================================================ */
 function cvGray(d,w,h){
   const g=new Uint8Array(w*h);
@@ -895,6 +897,24 @@ function validQuad(P,w,h){
   }
   return true;
 }
+/* 分割路径专用：允许纸角贴边（纸可伸出取景框） */
+function validQuadMask(P,w,h){
+  const A=quadArea(P)/(w*h);
+  if(A<0.10||A>0.985)return false;
+  let sign=0;
+  for(let i=0;i<4;i++){
+    const a=P[(i+3)%4],b=P[i],c=P[(i+1)%4];
+    const cr=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    const s=cr>=0?1:-1;
+    if(sign===0)sign=s;else if(s!==sign)return false;
+    const v1x=a.x-b.x,v1y=a.y-b.y,v2x=c.x-b.x,v2y=c.y-b.y;
+    const l1=Math.sqrt(v1x*v1x+v1y*v1y)||1e-9,l2=Math.sqrt(v2x*v2x+v2y*v2y)||1e-9;
+    const dot=(v1x*v2x+v1y*v2y)/(l1*l2);
+    const ang=Math.acos(Math.max(-1,Math.min(1,dot)))*57.29578;
+    if(ang<50||ang>130)return false;
+  }
+  return true;
+}
 function fillRate(P,pts){
   const n=Math.min(300,pts.length);
   if(!n)return 0;
@@ -1008,14 +1028,150 @@ function cvDetect(gray,w,h){
   if(!best)return{found:false,score:0};
   return{found:true,quad:padQuad(best.quad,0.015,w,h),score:best.score};
 }
+/* ================================================================
+   主检测：白色区域分割（魔术棒思路）
+   阈值 → 亮区掩码 → 从边界洪泛填充（字迹孔洞并入） → 最大连通块
+   → 凸包拟合四边形（失败用包围盒） → 打分
+   ================================================================ */
+function cvDetectMask(gray,w,h){
+  const N=w*h;
+  function otsuT(){
+    const hist=new Uint32Array(256);
+    for(let i=0;i<N;i++)hist[gray[i]]++;
+    let sum=0;for(let j=0;j<256;j++)sum+=j*hist[j];
+    let sumB=0,wB=0,best=-1,t=127;
+    for(let k=0;k<256;k++){
+      wB+=hist[k];if(!wB)continue;
+      const wF=N-wB;if(!wF)break;
+      sumB+=k*hist[k];
+      const mB=sumB/wB,mF=(sum-sumB)/wF,v=wB*wF*(mB-mF)*(mB-mF);
+      if(v>best){best=v;t=k;}
+    }
+    return t;
+  }
+  function runAt(thr){
+    const mask=new Uint8Array(N);
+    let bright=0;
+    for(let i=0;i<N;i++){if(gray[i]>thr){mask[i]=1;bright++;}}
+    const br=bright/N;
+    if(br<0.05||br>0.965)return null;
+    /* 从边界洪泛标记"外部"，未被标记的暗像素 = 纸内字迹孔洞 → 填充 */
+    const vis=new Uint8Array(N),st=[];
+    for(let x=0;x<w;x++){
+      const a=x,b=(h-1)*w+x;
+      if(!mask[a]&&!vis[a]){vis[a]=1;st.push(a);}
+      if(!mask[b]&&!vis[b]){vis[b]=1;st.push(b);}
+    }
+    for(let y=0;y<h;y++){
+      const c=y*w,d=y*w+w-1;
+      if(!mask[c]&&!vis[c]){vis[c]=1;st.push(c);}
+      if(!mask[d]&&!vis[d]){vis[d]=1;st.push(d);}
+    }
+    while(st.length){
+      const p=st.pop(),py=(p/w)|0,px=p-py*w;
+      if(px>0&&!mask[p-1]&&!vis[p-1]){vis[p-1]=1;st.push(p-1);}
+      if(px<w-1&&!mask[p+1]&&!vis[p+1]){vis[p+1]=1;st.push(p+1);}
+      if(py>0&&!mask[p-w]&&!vis[p-w]){vis[p-w]=1;st.push(p-w);}
+      if(py<h-1&&!mask[p+w]&&!vis[p+w]){vis[p+w]=1;st.push(p+w);}
+    }
+    for(let q=0;q<N;q++){if(!mask[q]&&!vis[q])mask[q]=1;}
+    /* 最大亮色连通块 */
+    const seen=new Uint8Array(N);
+    let bestPts=null,bestN=0;
+    for(let s=0;s<N;s++){
+      if(mask[s]&&!seen[s]){
+        const pts=[],stk=[s];seen[s]=1;
+        while(stk.length){
+          const u=stk.pop();pts.push(u);
+          const uy=(u/w)|0,ux=u-uy*w;
+          if(ux>0&&mask[u-1]&&!seen[u-1]){seen[u-1]=1;stk.push(u-1);}
+          if(ux<w-1&&mask[u+1]&&!seen[u+1]){seen[u+1]=1;stk.push(u+1);}
+          if(uy>0&&mask[u-w]&&!seen[u-w]){seen[u-w]=1;stk.push(u-w);}
+          if(uy<h-1&&mask[u+w]&&!seen[u+w]){seen[u+w]=1;stk.push(u+w);}
+        }
+        if(pts.length>bestN){bestN=pts.length;bestPts=pts;}
+      }
+    }
+    if(!bestPts||bestN<N*0.08)return null;
+    /* 包围盒 */
+    let x0=w,y0=h,x1=0,y1=0;
+    const comp=new Uint8Array(N);
+    for(let t2=0;t2<bestPts.length;t2++){
+      const j=bestPts[t2];comp[j]=1;
+      const jy=(j/w)|0,jx=j-jy*w;
+      if(jx<x0)x0=jx;if(jx>x1)x1=jx;
+      if(jy<y0)y0=jy;if(jy>y1)y1=jy;
+    }
+    const bw=x1-x0+1,bh=y1-y0+1;
+    if(bw>0.965*w&&bh>0.965*h)return null;   /* 白区占满画面，无裁剪意义 */
+    const fill=bestPts.length/(bw*bh);
+    if(fill<0.45)return null;
+    /* 边界采样点（每列上下端 + 每行左右端） */
+    const bpts=[];
+    for(let cx=0;cx<w;cx++){
+      let top=-1,bot=-1;
+      for(let cy=0;cy<h;cy++){if(comp[cy*w+cx]){if(top<0)top=cy;bot=cy;}}
+      if(top>=0){bpts.push({x:cx,y:top});bpts.push({x:cx,y:bot});}
+    }
+    for(let ry=0;ry<h;ry++){
+      let l=-1,r=-1;
+      for(let rx=0;rx<w;rx++){if(comp[ry*w+rx]){if(l<0)l=rx;r=rx;}}
+      if(l>=0){bpts.push({x:l,y:ry});bpts.push({x:r,y:ry});}
+    }
+    /* 凸包拟合四边形，失败退回包围盒 */
+    let quad=null;
+    const hull=cvHull(bpts);
+    if(hull&&hull.length>=4){
+      const peri=polyPerimeter(hull);
+      let poly=cvDPClosed(hull,Math.max(3,peri*0.02));
+      if(poly.length>4)poly=cvReduceTo4(poly);
+      if(poly&&poly.length===4&&validQuadMask(poly,w,h))quad=poly;
+    }
+    if(!quad)quad=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+    /* 组件采样点用于打分 */
+    const sample=[];
+    const step=Math.max(1,Math.floor(bestPts.length/600));
+    for(let si=0;si<bestPts.length;si+=step){
+      const j=bestPts[si],jy=(j/w)|0;
+      sample.push({x:j-jy*w,y:jy});
+    }
+    const sc=scoreQuad(quad,sample,gray,w,h);
+    if(sc<=0)return null;
+    return{quad:padQuad(quad,0.012,w,h),score:sc};
+  }
+  const t0=otsuT();
+  if(t0<55||t0>245)return null;
+  let best=null;
+  const cands=[t0,Math.min(250,t0+28)];
+  for(let ci=0;ci<cands.length;ci++){
+    let r=null;
+    try{r=runAt(cands[ci]);}catch(e){r=null;}
+    if(r&&(!best||r.score>best.score))best=r;
+  }
+  return best?{found:true,quad:best.quad,score:best.score}:{found:false,score:0};
+}
+/* 总入口：分割法为主，Canny 为辅，按分数取优 */
+function cvDetectAll(gray,w,h){
+  let best=null;
+  try{
+    const m=cvDetectMask(gray,w,h);
+    if(m&&m.found&&m.quad)best=m;
+  }catch(e){}
+  try{
+    const c=cvDetect(gray,w,h);
+    if(c&&c.found&&c.quad&&(!best||c.score>best.score))best=c;
+  }catch(e){}
+  if(best)return best;
+  return{found:false,score:0};
+}
 
-/* ================= Worker 封装（顶层 try/catch，无包裹函数） ================= */
+/* ================= Worker 封装 ================= */
 let cvWorker=null,wSeq=0;
 const wPending=new Map();
 try{
-  const fns=[cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,fillRate,quadContrast,scoreQuad,evalComp,padQuad,cvDetect];
+  const fns=[cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,validQuadMask,fillRate,quadContrast,scoreQuad,evalComp,padQuad,cvDetect,cvDetectMask,cvDetectAll];
   const src=fns.map(f=>f.toString()).join('\n')+
-    '\nonmessage=function(e){var d=e.data;try{var r=cvDetect(new Uint8Array(d.buf),d.w,d.h);postMessage({id:d.id,found:r.found,quad:r.quad||null,score:r.score||0});}catch(err){postMessage({id:d.id,found:false,score:0});}};';
+    '\nonmessage=function(e){var d=e.data;try{var r=cvDetectAll(new Uint8Array(d.buf),d.w,d.h);postMessage({id:d.id,found:r.found,quad:r.quad||null,score:r.score||0});}catch(err){postMessage({id:d.id,found:false,score:0});}};';
   cvWorker=new Worker(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
   cvWorker.onmessage=function(e){
     const p=wPending.get(e.data.id);
@@ -1025,7 +1181,7 @@ try{
     try{cvWorker.terminate();}catch(_){}
     cvWorker=null;
     const st=document.getElementById('edgeStat');
-    if(st)st.textContent='EDGE·INLINE';
+    if(st)st.textContent='SEG·INLINE';
   };
 }catch(e){cvWorker=null;}
 function cvRun(gray,w,h){
@@ -1035,11 +1191,11 @@ function cvRun(gray,w,h){
       wPending.set(id,res);
       try{cvWorker.postMessage({buf:gray.buffer,w:w,h:h,id:id},[gray.buffer]);}
       catch(e){wPending.delete(id);res(null);}
-      setTimeout(()=>{if(wPending.has(id)){wPending.delete(id);res(null);}},700);
+      setTimeout(()=>{if(wPending.has(id)){wPending.delete(id);res(null);}},900);
     });
   }
   try{
-    const r=cvDetect(gray,w,h);
+    const r=cvDetectAll(gray,w,h);
     return Promise.resolve({id:0,found:r.found,quad:r.quad||null,score:r.score||0});
   }catch(e){return Promise.resolve(null);}
 }
@@ -1177,7 +1333,7 @@ async function applyModeAsync(cv,mode){
   ctx.putImageData(img,0,0);
 }
 
-/* ---- 旧版包围盒检测（保留为兜底） ---- */
+/* ---- 兜底：包围盒检测 ---- */
 function otsuThresh(gray,total){
   const hist=new Uint32Array(256);
   for(let i=0;i<total;i++)hist[gray[i]]++;
@@ -1252,7 +1408,6 @@ function detectContentQuad(cv){
   ];
 }
 function detectAutoQuad(cv){return brightPaperQuad(cv)||detectContentQuad(cv);}
-/* 统一入口：先走 Canny 引擎，失败再兜底 */
 async function detectQuadSmart(srcCanvas,minScore){
   try{
     const s=Math.min(1,480/Math.max(srcCanvas.width,srcCanvas.height));
@@ -1425,7 +1580,7 @@ function makeZip(files){
   const cdStart=offset;let cdSize=0;
   for(const c of central){
     const ch=new DataView(new ArrayBuffer(46));
-    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,0x0800,true);
     ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
     ch.setUint16(12,dtime,true);ch.setUint16(14,ddate,true);
     ch.setUint32(16,c.crc,true);ch.setUint32(20,c.size,true);ch.setUint32(24,c.size,true);
@@ -1472,7 +1627,7 @@ function makePDF(imgs){
   return new Blob(chunks,{type:'application/pdf'});
 }
 
-/* ================= 本地持久化（多文档） ================= */
+/* ================= 本地持久化 ================= */
 const DB={db:null,
   open(){return new Promise(res=>{
     if(!('indexedDB'in window))return res(false);
@@ -1596,7 +1751,7 @@ function setBusyTxt(t){busyTxt.textContent=t;}
 /* ================= 渲染 ================= */
 function renderMeta(){
   $('#docNameTxt').textContent=docName;
-  $('#esDesc').innerHTML=`当前文档：「${esc(docName)}」<br>Canny 边缘引擎实时锁定纸张轮廓，<br>快门只保留框内内容。`;
+  $('#esDesc').innerHTML=`当前文档：「${esc(docName)}」<br>白色区域分割引擎实时锁定纸张，<br>快门只保留白纸区域内容。`;
   $('#camDocTip').textContent=`正在拍摄：「${docName}」`;
   const n=pages.length;
   $('#docSub').textContent=`${String(n).padStart(2,'0')} PAGES · ${n?fmtMB(totalSize()):'0.0 MB'}`;
@@ -1807,7 +1962,7 @@ async function rotateOutputOnly(p){
   DB.put(p);
 }
 
-/* ================= 相机 + 实时边缘引擎 ================= */
+/* ================= 相机 + 实时分割引擎 ================= */
 let stream=null,shotN=0;
 function permHint(){
   if(isIOS)return 'iOS 设置 → Safari → 摄像头 → 允许（或 设置 → 隐私与安全性 → 摄像头 → 打开 Safari），然后刷新重试';
@@ -1839,7 +1994,6 @@ async function getStream(){
   throw lastErr||new Error('无法打开相机');
 }
 
-/* ---- Edge 实时框 ---- */
 const Edge={active:false,timer:null,manual:false,quad:null,target:null,disp:null,
             confident:false,lost:0,busy:false,small:null,smallCtx:null};
 const edgeSvg=$('#edgeSvg'),edgePoly=$('#edgePoly'),edgeHint=$('#edgeHint'),edgeWrap=$('#edgeWrap'),edgeStat=$('#edgeStat');
@@ -1935,7 +2089,8 @@ function edgeHintText(){
   if(Edge.manual)return '手动模式 · 左下「框选·自动」可恢复';
   if(Edge.quad&&Edge.confident)return '';
   if(Edge.quad)return '边缘待确认 · 可拖动角点修正';
-  return '正在寻找纸张边缘…';
+  if(Edge.lost>8)return '未找到白纸区域 · 稍微拉远，让纸张四周露出桌面';
+  return '正在识别白纸区域…';
 }
 function hideEdge(){edgeWrap.style.display='none';edgeHint.style.display='none';}
 function edgeStart(){
@@ -1943,7 +2098,7 @@ function edgeStart(){
   Edge.active=true;Edge.lost=0;Edge.manual=false;
   Edge.quad=null;Edge.target=null;Edge.disp=null;Edge.confident=false;
   edgeStat.style.display='block';
-  edgeStat.textContent=cvWorker?'EDGE·WORKER':'EDGE·INLINE';
+  edgeStat.textContent=cvWorker?'SEG·WORKER':'SEG·INLINE';
   edgeLoop();
 }
 function edgeStop(){
@@ -1981,7 +2136,7 @@ $('#autoChip').onclick=()=>{
   if(!autoCropOn){Edge.quad=null;Edge.manual=false;hideEdge();}
   else{Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;}
   vibrate(8);
-  toast(autoCropOn?'自动框选已开启：绿框锁定纸张，快门只拍框内':'自动框选已关闭：快门将拍摄全图');
+  toast(autoCropOn?'自动框选已开启：绿框锁定白纸，快门只拍框内':'自动框选已关闭：快门将拍摄全图');
 };
 
 async function openCamera(){
@@ -2026,7 +2181,7 @@ document.addEventListener('visibilitychange',()=>{
   }
 });
 
-/* ---- 快门：精检 + 截取 + 右下角预览/重拍 ---- */
+/* ---- 快门 ---- */
 let lastShotId=null;
 function quadThumb(srcCv,quad){
   const xs=quad.map(p=>p.x),ys=quad.map(p=>p.y);
@@ -2057,7 +2212,7 @@ async function shoot(){
     }else{
       let refined=null;
       try{
-        refined=await Promise.race([detectQuadSmart(c,0.4),new Promise(res=>setTimeout(()=>res(null),400))]);
+        refined=await Promise.race([detectQuadSmart(c,0.4),new Promise(res=>setTimeout(()=>res(null),450))]);
       }catch(e){}
       if(refined)quad=refined;
       else if(Edge.quad&&!isFullQuad(Edge.quad))quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
@@ -2301,14 +2456,12 @@ $('#dgCam').onclick=async()=>{
     toast(camErrHint(e),'warn');
   }
 };
-/* 文件包 */
 $('#btnDocs').onclick=async()=>{await renderDocList();openM($('#docsModal'));};
 $('#docsClose').onclick=()=>closeM($('#docsModal'));
 $('#btnNewDoc').onclick=()=>{$('#newDocInput').value=defaultDocName();closeM($('#docsModal'));openM($('#newDocModal'));setTimeout(()=>$('#newDocInput').select(),80);};
 $('#ndCancel').onclick=()=>closeM($('#newDocModal'));
 $('#ndOk').onclick=()=>createDoc($('#newDocInput').value.trim());
 $('#newDocInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ndOk').click();});
-/* 权限引导 */
 $('#pmClose').onclick=()=>closeM($('#permModal'));
 $('#pmRetry').onclick=async()=>{
   closeM($('#permModal'));
@@ -2321,7 +2474,6 @@ $('#pmRetry').onclick=async()=>{
   }
   openCamera();
 };
-/* 主操作 */
 $('#btnCamera').onclick=()=>{vibrate(10);openCamera();};
 $('#btnGallery').onclick=()=>$('#filePick').click();
 $('#filePick').onchange=e=>{
@@ -2332,7 +2484,6 @@ $('#camClose').onclick=closeCamera;
 $('#camDone').onclick=closeCamera;
 $('#shutter').onclick=shoot;
 previewImg.onclick=()=>pages.length&&openEditor(current);
-/* 工具条 */
 $('#tEdit').onclick=()=>openEditor(current);
 $('#tName').onclick=()=>{
   const p=pages[current];if(!p)return;
@@ -2356,7 +2507,6 @@ $('#pnClear').onclick=()=>{
   $('#pnInput').value='';
   closeM($('#pageNameModal'));renderFilmstrip();toast('已清除本页命名');
 };
-/* 彩色/扫描切换 */
 document.querySelectorAll('#quickMode button').forEach(b=>{
   b.onclick=async()=>{
     if(!pages.length)return;
@@ -2373,7 +2523,6 @@ document.querySelectorAll('#quickMode button').forEach(b=>{
     toast(m==='color'?'本页已切换为彩色（仅裁剪，保留原色），后续新页默认彩色':'本页已切换为扫描增强（去阴影白底），后续新页默认扫描');
   };
 });
-/* 旋转 */
 $('#tRot').onclick=async()=>{
   const p=pages[current];if(!p)return;
   const oldRot=p.rotation;
