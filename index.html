@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>墨案 · 本机扫描仪</title>
+<title>快扫侠 · 本机扫描仪</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -37,7 +37,7 @@ img{user-select:none;-webkit-touch-callout:none;-webkit-user-drag:none}
 
 header{display:flex;align-items:center;gap:6px;padding:12px 10px 10px;border-bottom:1px solid var(--line);flex:none}
 .logo{margin-right:1px}
-.logo-cn{font-family:'Noto Serif SC',serif;font-weight:900;font-size:20px;letter-spacing:3px;display:block;line-height:1.1}
+.logo-cn{font-family:'Noto Serif SC',serif;font-weight:900;font-size:18.5px;letter-spacing:2px;display:block;line-height:1.1}
 .logo-en{font-family:'Space Grotesk',monospace;font-size:8px;letter-spacing:.2em;color:var(--ink2)}
 #docBtn{flex:1;text-align:left;min-width:0;display:block;padding:4px 6px;border-radius:8px}
 #docBtn:active{background:rgba(0,0,0,.06)}
@@ -282,7 +282,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.0';
+window.__VER='2.1';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -293,11 +293,11 @@ function captureErr(kind,msg){
 function showFatal(msg){
   try{
     var el=document.getElementById('fatal');
-    if(!el){alert('【墨案错误】'+msg);return;}
+    if(!el){alert('【快扫侠错误】'+msg);return;}
     window.REPORT.fatalShown=true;
     document.getElementById('fatalMsg').textContent=msg+'（已计入诊断报告，共 '+window.REPORT.errors.length+' 条）';
     el.classList.add('show');
-  }catch(e){try{alert('【墨案错误】'+msg);}catch(e2){}}
+  }catch(e){try{alert('【快扫侠错误】'+msg);}catch(e2){}}
 }
 window.addEventListener('error',function(e){
   var m=(e&&e.message)?e.message:'未知错误';
@@ -329,7 +329,7 @@ function copyText(t){
 }
 window.__buildReportFallback=function(){
   var L=[];
-  L.push('【墨案 诊断报告】v'+window.__VER);
+  L.push('【快扫侠 诊断报告】v'+window.__VER);
   L.push('时间: '+new Date().toLocaleString());
   L.push('网址: '+location.href);
   L.push('UA: '+navigator.userAgent);
@@ -340,7 +340,7 @@ window.__buildReportFallback=function(){
 };
 setTimeout(function(){
   if(window.__INK_OK||window.REPORT.fatalShown)return;
-  alert('【墨案】页面脚本未能在预期时间内就绪。\n\n可能原因：\n1) 浏览器缓存了旧版本——请强制刷新\n2) 部署的 index.html 不完整——请确认文件末尾是 <\/html>，且预览台左下角显示 V'+window.__VER+'\n3) 脚本运行出错——若顶部出现红色错误条，请截图反馈\n\n若反复出现，请截图本提示与我联系。');
+  alert('【快扫侠】页面脚本未能在预期时间内就绪。\n\n可能原因：\n1) 浏览器缓存了旧版本——请强制刷新\n2) 部署的 index.html 不完整——请确认文件末尾是 <\/html>，且预览台左下角显示 V'+window.__VER+'\n3) 脚本运行出错——若顶部出现红色错误条，请截图反馈\n\n若反复出现，请截图本提示与我联系。');
 },3500);
 document.getElementById('fatalClose').onclick=function(){
   document.getElementById('fatal').classList.remove('show');
@@ -376,7 +376,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 
 <div id="app">
   <header>
-    <div class="logo"><span class="logo-cn">墨案</span><span class="logo-en">INKCASE</span></div>
+    <div class="logo"><span class="logo-cn">快扫侠</span><span class="logo-en">KUAISAOXIA</span></div>
     <button id="docBtn">
       <span id="docLabel"><span id="docNameTxt">扫描件</span><svg class="ic"><use href="#i-pencil"/></svg></span>
       <span id="docSub">00 PAGES</span>
@@ -389,7 +389,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.0</div>
+    <div id="verTag">V2.1</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
 
@@ -556,7 +556,7 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div class="fmt">
       <label id="fmtZip" class="on"><input type="radio" name="fmt" value="zip" checked>
         <span class="fmt-name"><svg class="ic"><use href="#i-images"/></svg>ZIP 图片包</span>
-        <small>文件名为「文档名_01」或本页命名，解压即可识别每张内容</small>
+        <small>文件名为「文档名_01」或「文档名_本页命名」，解压即可识别每张内容</small>
       </label>
       <label id="fmtPdf"><input type="radio" name="fmt" value="pdf">
         <span class="fmt-name"><svg class="ic"><use href="#i-file"/></svg>PDF 文档</span>
@@ -598,7 +598,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
-    <div class="card-title">诊断与帮助 <span style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.0</span></div>
+    <div class="card-title">诊断与帮助 <span style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.1</span></div>
 
     <label class="f-label" style="margin-top:0">环境自检</label>
     <div id="dgList"></div>
@@ -1144,6 +1144,8 @@ function cvDetectMask(gray,w,h){
   let best=null;
   const cands=[t0,Math.min(250,t0+28)];
   for(let ci=0;ci<cands.length;ci++){
+    /* 提速：首个阈值已高置信时跳过备用阈值，省一半洪泛与连通块计算 */
+    if(best&&best.score>=0.62)break;
     let r=null;
     try{r=runAt(cands[ci]);}catch(e){r=null;}
     if(r&&(!best||r.score>best.score))best=r;
@@ -1155,7 +1157,11 @@ function cvDetectAll(gray,w,h){
   let best=null;
   try{
     const m=cvDetectMask(gray,w,h);
-    if(m&&m.found&&m.quad)best=m;
+    if(m&&m.found&&m.quad){
+      best=m;
+      /* 提速：分割法已高置信时不再跑 Canny 全流程（模糊+Sobel+NMS+滞后阈值+连通块） */
+      if(m.score>=0.55)return best;
+    }
   }catch(e){}
   try{
     const c=cvDetect(gray,w,h);
@@ -1750,6 +1756,7 @@ function setBusyTxt(t){busyTxt.textContent=t;}
 
 /* ================= 渲染 ================= */
 function renderMeta(){
+  if(current>=pages.length)current=Math.max(0,pages.length-1);
   $('#docNameTxt').textContent=docName;
   $('#esDesc').innerHTML=`当前文档：「${esc(docName)}」<br>白色区域分割引擎实时锁定纸张，<br>快门只保留白纸区域内容。`;
   $('#camDocTip').textContent=`正在拍摄：「${docName}」`;
@@ -1760,7 +1767,6 @@ function renderMeta(){
   ['tEdit','tName','tRot','tDel'].forEach(id=>{document.getElementById(id).disabled=!n;});
   expCount.style.display=n?'flex':'none';expCount.textContent=n;
   document.querySelectorAll('#quickMode button').forEach(b=>{
-    b.disabled=!n;
     const eff=n?(pages[current].mode==='color'?'color':'magic'):defaultMode;
     b.classList.toggle('on',b.dataset.qm===eff);
   });
@@ -2024,7 +2030,8 @@ function quadDist(a,b){
 }
 async function edgeLoop(){
   if(!Edge.active)return;
-  Edge.timer=setTimeout(edgeLoop,190);
+  /* 提速：未锁定时提高检测频率更快锁定绿框；锁定稳定后降频，省电且防框抖 */
+  Edge.timer=setTimeout(edgeLoop,Edge.confident?320:140);
   if(Edge.busy||Edge.manual)return;
   const v=$('#camVideo');
   if(!stream||document.hidden||!v.videoWidth)return;
@@ -2239,6 +2246,7 @@ $('#lsRetake').onclick=()=>{
     URL.revokeObjectURL(p.outURL);
     pages.splice(idx,1);
     DB.del(p.id);
+    if(current>=pages.length)current=Math.max(0,pages.length-1);
     renderAll();
   }
   if(queue.length!==before){qTotal=qDone+queue.length;}
@@ -2321,7 +2329,11 @@ function openExport(){
   $('#expModal').classList.add('open');
 }
 function buildZipName(p,idx,used){
-  let base=p&&p.name?safeFileName(p.name):(safeFileName($('#expName').value||docName)+'_'+String(idx+1).padStart(2,'0'));
+  /* 统一携带文档名前缀，单独发送某张图时也有出处信息 */
+  const prefix=safeFileName($('#expName').value||docName);
+  const sub=p&&p.name?safeFileName(p.name):String(idx+1).padStart(2,'0');
+  let base=prefix+'_'+sub;
+  if(p&&p.name&&base.length>60)base=prefix.slice(0,30)+'_'+sub;
   let n=base,k=2;
   while(used.has(n)){n=base+'_'+k;k++;}
   used.add(n);
@@ -2397,7 +2409,7 @@ function computeDiag(){
 window.__buildReport=function(){
   try{
     const L=[];
-    L.push('【墨案 诊断报告】v'+window.__VER);
+    L.push('【快扫侠 诊断报告】v'+window.__VER);
     L.push('时间: '+new Date().toLocaleString());
     L.push('网址: '+location.href);
     L.push('浏览器内相机权限: '+(camPermState||'未知'));
@@ -2509,8 +2521,15 @@ $('#pnClear').onclick=()=>{
 };
 document.querySelectorAll('#quickMode button').forEach(b=>{
   b.onclick=async()=>{
-    if(!pages.length)return;
     const m=b.dataset.qm;
+    /* 没有页面时：仅预设后续新页的默认模式（新建文档后也能直接设定） */
+    if(!pages.length){
+      if(defaultMode!==m){
+        defaultMode=m;saveMode();renderMeta();vibrate(6);
+        toast(m==='color'?'已预设：之后拍摄的新页将使用彩色（仅裁剪）':'已预设：之后拍摄的新页将使用扫描增强（去阴影白底）');
+      }
+      return;
+    }
     const p=pages[current];
     const curEff=p.mode==='color'?'color':'magic';
     if(curEff===m)return;
@@ -2549,6 +2568,7 @@ $('#tDel').onclick=()=>{
   confirmBox(`确定删除第 ${current+1} 页${p.name?('「'+p.name+'」'):''}吗？`,()=>{
     URL.revokeObjectURL(p.outURL);
     pages.splice(current,1);DB.del(p.id);
+    if(current>=pages.length)current=Math.max(0,pages.length-1);
     renderAll();vibrate(15);toast('已删除');
   });
 };
@@ -2645,7 +2665,7 @@ $('#cfmYes').onclick=()=>{closeM($('#cfmModal'));cfCb&&cfCb();cfCb=null;};
   }
   renderAll();
   window.__INK_OK=true;
-  console.log('[墨案] v'+window.__VER+' 初始化完成 · 检测引擎: '+(cvWorker?'Worker':'Inline'));
+  console.log('[快扫侠] v'+window.__VER+' 初始化完成 · 检测引擎: '+(cvWorker?'Worker':'Inline'));
 })();
 </script>
 </body>
