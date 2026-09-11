@@ -287,7 +287,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.3';
+window.__VER='2.4';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -394,7 +394,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.3</div>
+    <div id="verTag">V2.4</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
 
@@ -496,6 +496,45 @@ document.getElementById('fatalCopy').onclick=async function(){
       <button id="ndCancel" class="btn ghost">取消</button>
       <button id="ndOk" class="btn accent">创建并切换</button>
     </div>
+  </div>
+</div>
+
+<!-- 桌面导入（文件夹 / ZIP / 图片） -->
+<div class="modal center" id="desktopPickModal">
+  <div class="card">
+    <button class="icon-btn card-x" id="dpClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="card-title">导入图片</div>
+    <button id="dpDir" class="btn accent"><svg class="ic"><use href="#i-images"/></svg>选择文件夹</button>
+    <button id="dpZip" class="btn dark"><svg class="ic"><use href="#i-file"/></svg>导入 ZIP 压缩包</button>
+    <button id="dpImgs" class="btn ghost"><svg class="ic"><use href="#i-images"/></svg>选择图片（可多选）</button>
+    <div id="dpImgsDone" style="display:none">
+      <p id="dpSelTxt" style="font-size:14px;color:var(--ink2);margin:6px 0 10px"></p>
+      <button id="dpUpload" class="btn accent"><svg class="ic"><use href="#i-check"/></svg>上传</button>
+      <button id="dpRechoose" class="btn ghost">重新选择</button>
+    </div>
+    <p class="fine">文件夹 / ZIP 会以名称作为文档名，导入后自动识别裁剪。</p>
+  </div>
+</div>
+
+<!-- 命名方式询问（批量导入后） -->
+<div class="modal center" id="nameAskModal">
+  <div class="card">
+    <button class="icon-btn card-x" id="naClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="card-title">命名方式</div>
+    <p id="naText" style="font-size:14px;color:var(--ink2);line-height:1.8;margin-bottom:14px"></p>
+    <button id="naOrig" class="btn accent"><svg class="ic"><use href="#i-check"/></svg>使用原图片名</button>
+    <button id="naDefault" class="btn ghost">使用默认命名</button>
+  </div>
+</div>
+
+<!-- 微信内分享小窗 -->
+<div class="modal center" id="wxModal">
+  <div class="card">
+    <button class="icon-btn card-x" id="wxClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="card-title">分享到微信</div>
+    <p class="fine" style="margin-bottom:12px">微信内无法直接调起分享面板。长按下方图片可保存或转发给朋友；如需发 PDF / ZIP 文件，请复制链接到系统浏览器打开本页后再导出。</p>
+    <div style="text-align:center;margin-bottom:12px"><img id="wxImg" alt="预览" style="max-width:72%;max-height:46dvh;border-radius:10px;border:1px solid var(--line)"></div>
+    <button id="wxCopy" class="btn accent"><svg class="ic"><use href="#i-share"/></svg>复制链接（去浏览器打开）</button>
   </div>
 </div>
 
@@ -603,7 +642,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.3</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.4</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -626,6 +665,8 @@ document.getElementById('fatalCopy').onclick=async function(){
       <p><b>彩色 / 扫描？</b>「彩色」只裁剪保原色；「扫描」=裁剪+去阴影白底。切换在图片下方工具条。</p>
       <p><b>文件包怎么用？</b>右上角 📁：拍完一份 → 新建一份自动切换；导出只导出当前文档。</p>
       <p><b>系统授权了还是打不开相机？</b>浏览器把「拒绝」记在浏览器内部，需在浏览器内改回允许：地址栏 🔒 → 权限 → 摄像头 → 允许。</p>
+      <p><b>电脑上怎么用？</b>在电脑浏览器打开本页即自动切换电脑模式：拍照用电脑摄像头；「相册」可选文件夹 / ZIP 压缩包 / 多选图片批量导入，文件夹与 ZIP 名称自动作为文档名，可选保留原图片名。</p>
+      <p><b>微信里怎么分享？</b>微信内置浏览器调不起分享面板，点分享会弹出小窗预览：长按图片即可保存或转发；要发 PDF/ZIP，先复制链接到系统浏览器打开再导出。</p>
       <p><b>怎么发给微信？</b>导出 → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
     </div>
   </div>
@@ -633,6 +674,9 @@ document.getElementById('fatalCopy').onclick=async function(){
 
 <div id="toasts"></div>
 <input type="file" id="filePick" accept="image/*" multiple hidden>
+<input type="file" id="dirPick" webkitdirectory multiple hidden>
+<input type="file" id="zipPick" accept=".zip,application/zip,application/x-zip-compressed" hidden>
+<input type="file" id="imgPickDesktop" accept="image/*" multiple hidden>
 
 <script>
 'use strict';
@@ -664,6 +708,10 @@ function fmtDay(ts){
 }
 const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const isAndroid=/Android/i.test(navigator.userAgent);
+/* 桌面环境：非手机 UA 即视为桌面（自动识别，互不影响手机端逻辑） */
+const isDesktop=!isIOS&&!isAndroid;
+/* 微信内置浏览器：无法调起系统分享面板，导出分享走小窗预览方案 */
+const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
 
 /* ================= 权限状态查询 ================= */
 let camPermState=null;
@@ -1927,6 +1975,145 @@ async function renderDocList(){
   }
 }
 
+/* ================= ZIP 解压（本机解析，零外部依赖） =================
+   支持存储(0)与 deflate(8) 两种压缩方式；仅提取图片类条目 */
+const ZIP_IMG_RE=/\.(jpe?g|png|gif|bmp|webp|tiff?|heic|heif)$/i;
+function zipMime(n){
+  const e=(n.match(/\.(jpe?g|png|gif|bmp|webp|tiff?|heic|heif)$/i)||[''])[1].toLowerCase();
+  return({'jpg':'image/jpeg','jpeg':'image/jpeg','png':'image/png','gif':'image/gif',
+    'bmp':'image/bmp','webp':'image/webp','tif':'image/tiff','tiff':'image/tiff',
+    'heic':'image/heic','heif':'image/heif'})[e]||'application/octet-stream';
+}
+async function unzipImages(file){
+  const buf=new Uint8Array(await file.arrayBuffer());
+  const dv=new DataView(buf.buffer);
+  /* 定位 End of Central Directory（从尾部向前找，最多回溯 64KB+22） */
+  let eocd=-1;
+  for(let i=buf.length-22;i>=Math.max(0,buf.length-22-65536);i--){
+    if(dv.getUint32(i,true)===0x06054b50){eocd=i;break;}
+  }
+  if(eocd<0)throw new Error('无效的 ZIP 文件');
+  const cnt=dv.getUint16(eocd+10,true);
+  let off=dv.getUint32(eocd+16,true);
+  const out=[];
+  for(let n=0;n<cnt;n++){
+    if(off+46>buf.length||dv.getUint32(off,true)!==0x02014b50)break;
+    const method=dv.getUint16(off+10,true);
+    const csize=dv.getUint32(off+20,true);
+    const nlen=dv.getUint16(off+28,true),elen=dv.getUint16(off+30,true),clen=dv.getUint16(off+32,true);
+    const lho=dv.getUint32(off+42,true);
+    const fname=new TextDecoder().decode(buf.slice(off+46,off+46+nlen));
+    off+=46+nlen+elen+clen;
+    if(/\/$/.test(fname))continue;               /* 目录条目 */
+    if(fname.split('/').pop().startsWith('.'))continue;  /* 隐藏文件 */
+    if(!ZIP_IMG_RE.test(fname))continue;          /* 仅图片 */
+    if(lho+30>buf.length||dv.getUint32(lho,true)!==0x04034b50)continue;
+    const lnlen=dv.getUint16(lho+26,true),lelen=dv.getUint16(lho+28,true);
+    const dstart=lho+30+lnlen+lelen;
+    const cdata=buf.slice(dstart,dstart+csize);
+    let data;
+    try{
+      if(method===0)data=cdata;
+      else if(method===8){
+        const stream=new Blob([cdata]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        data=new Uint8Array(await new Response(stream).arrayBuffer());
+      }else continue;
+    }catch(e){continue;}
+    out.push({blob:new Blob([data],{type:zipMime(fname)}),name:fname.split('/').pop()});
+  }
+  return out;
+}
+/* 原图片名 → 页面名（去扩展名、净化、限长） */
+function pageNameFromFile(fname){
+  const base=String(fname||'').replace(/\.[^.]+$/,'');
+  return safeFileName(base).slice(0,40)||null;
+}
+
+/* ================= 桌面导入（文件夹 / ZIP / 图片多选） ================= */
+let dpSelFiles=[];   /* 待上传的桌面选图 */
+let pendImport=null; /* 待询问命名的文件集 */
+function importSetDocName(name){
+  const v=safeFileName(name);
+  if(v){docName=v;saveName();renderMeta();toast('文档名已设为「'+v+'」');}
+}
+function askNaming(files,srcLabel){
+  if(!files.length){toast('没有找到可导入的图片','warn');return;}
+  pendImport=files;
+  $('#naText').textContent='已从'+srcLabel+'导入 '+files.length+' 张图片。是否使用原图片名作为每页名称？';
+  openM($('#nameAskModal'));
+}
+function commitImport(useOrig){
+  const files=pendImport||[];pendImport=null;
+  closeM($('#nameAskModal'));
+  if(!files.length)return;
+  const items=files.map(f=>({blob:f.blob,quad:null,shotId:null,
+    name:useOrig?pageNameFromFile(f.name):null}));
+  toast('已导入 '+items.length+' 张，正在识别裁剪（'+(defaultMode==='color'?'彩色':'扫描')+'模式）…');
+  enqueue(items);
+}
+$('#naOrig').onclick=()=>commitImport(true);
+$('#naDefault').onclick=()=>commitImport(false);
+$('#naClose').onclick=()=>{pendImport=null;closeM($('#nameAskModal'));};
+
+/* 桌面导入入口（手机端不受影响，仍走原 filePick） */
+$('#btnGallery').onclick=()=>{
+  if(isDesktop)openM($('#desktopPickModal'));
+  else $('#filePick').click();
+};
+$('#dpClose').onclick=()=>closeM($('#desktopPickModal'));
+$('#dpDir').onclick=()=>$('#dirPick').click();
+$('#dpZip').onclick=()=>$('#zipPick').click();
+$('#dpImgs').onclick=()=>$('#imgPickDesktop').click();
+
+/* 文件夹：名称作文档名，图片全部导入 */
+$('#dirPick').onchange=async e=>{
+  const fs=[...e.target.files];e.target.value='';
+  closeM($('#desktopPickModal'));
+  if(!fs.length)return;
+  const folder=(fs[0].webkitRelativePath||'').split('/')[0]||'导入文档';
+  const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
+  importSetDocName(folder);
+  askNaming(imgs,'文件夹「'+folder+'」');
+};
+/* ZIP：本机解压 → 名称（去 .zip）作文档名 */
+$('#zipPick').onchange=async e=>{
+  const f=e.target.files[0];e.target.value='';
+  closeM($('#desktopPickModal'));
+  if(!f)return;
+  showBusy('正在解压 ZIP…');
+  try{
+    const imgs=await unzipImages(f);
+    hideBusy();
+    if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
+    importSetDocName(f.name.replace(/\.zip$/i,''));
+    askNaming(imgs,'压缩包「'+f.name+'」');
+  }catch(err){
+    hideBusy();
+    toast('ZIP 解析失败：'+(err&&err.message||err),'warn');
+  }
+};
+/* 桌面多选图片：先暂存，点「上传」才开始 */
+$('#imgPickDesktop').onchange=e=>{
+  const fs=[...e.target.files].filter(f=>ZIP_IMG_RE.test(f.name));e.target.value='';
+  dpSelFiles=fs.map(f=>({blob:f,name:f.name}));
+  const done=$('#dpImgsDone');
+  if(dpSelFiles.length){
+    $('#dpSelTxt').textContent='已选择 '+dpSelFiles.length+' 张图片，确认后开始导入。';
+    done.style.display='block';
+    $('#dpImgs').textContent='重新选择图片';
+  }else{
+    done.style.display='none';
+  }
+};
+$('#dpRechoose').onclick=()=>{dpSelFiles=[];$('#dpImgsDone').style.display='none';$('#dpImgs').click();};
+$('#dpUpload').onclick=()=>{
+  const files=dpSelFiles;dpSelFiles=[];
+  $('#dpImgsDone').style.display='none';
+  $('#dpImgs').textContent='选择图片（可多选）';
+  closeM($('#desktopPickModal'));
+  askNaming(files,'本地选择');
+};
+
 /* ================= 处理队列 ================= */
 function enqueue(items){queue.push(...items);qTotal=qDone+queue.length;pump();}
 async function pump(){
@@ -1938,7 +2125,7 @@ async function pump(){
     setBusyTxt(`正在扫描 ${qDone}/${qTotal}`);
     if(retakeSet.has(it.shotId))continue;
     await tick();
-    try{await addPhoto(it.blob,it.quad,it.shotId);}
+    try{await addPhoto(it.blob,it.quad,it.shotId,it.name);}
     catch(e){
       console.error(e);
       toast('该照片处理失败：'+(e&&e.message||e),'warn');
@@ -1947,12 +2134,12 @@ async function pump(){
   }
   qTotal=0;qDone=0;working=false;hideBusy();
 }
-async function addPhoto(blob,presetQuad,shotId){
+async function addPhoto(blob,presetQuad,shotId,presetName){
   if(shotId&&retakeSet.has(shotId))return;
   const src=await loadScaled(blob,MAXSIDE);
   let quad=presetQuad||null;
   if(!quad||isFullQuad(quad))quad=await detectQuadSmart(src)||detectAutoQuad(src)||FULLQ();
-  const page={id:uid(),ts:Date.now(),docId:curDocId,mode:defaultMode,rotation:0,quad,name:null,shotId:shotId||null,
+  const page={id:uid(),ts:Date.now(),docId:curDocId,mode:defaultMode,rotation:0,quad,name:presetName||null,shotId:shotId||null,
     w:src.width,h:src.height,blurry:blurVariance(src)<50};
   const sb=await new Promise(r=>src.toBlob(r,'image/jpeg',0.92));
   if(!sb)throw new Error('照片编码失败（内存不足？）');
@@ -2376,6 +2563,32 @@ function buildZipName(p,idx,used){
   used.add(n);
   return n+'.jpg';
 }
+/* 微信内分享小窗：展示当前页成品图，长按即可保存/转发 */
+let wxImgUrl=null;
+async function showWxShare(filename){
+  const m=$('#wxModal');
+  const img=$('#wxImg');
+  if(wxImgUrl){try{URL.revokeObjectURL(wxImgUrl);}catch(e){}wxImgUrl=null;}
+  const p=pages[current]||pages[pages.length-1];
+  if(p&&p.outBlob){
+    wxImgUrl=URL.createObjectURL(p.outBlob);
+    img.src=wxImgUrl;img.style.display='inline-block';
+  }else{
+    img.removeAttribute('src');img.style.display='none';
+  }
+  img.dataset.fn=filename||'';
+  openM(m);
+}
+$('#wxClose').onclick=()=>closeM($('#wxModal'));
+$('#wxCopy').onclick=async()=>{
+  try{
+    await navigator.clipboard.writeText(location.href);
+    toast('链接已复制：粘贴到系统浏览器打开后即可正常分享文件');
+  }catch(e){
+    prompt('请手动复制本页链接：',location.href);
+  }
+};
+
 async function doExport(share){
   if(!pages.length)return;
   const name=safeFileName($('#expName').value||docName);
@@ -2397,7 +2610,10 @@ async function doExport(share){
       blob=makePDF(imgs);filename=`${name}.pdf`;
     }
     const file=new File([blob],filename,{type:blob.type});
-    if(share&&navigator.canShare&&navigator.canShare({files:[file]})){
+    if(share&&isWeChat){
+      /* 微信内置浏览器调不起分享面板：改走小窗预览（长按保存/转发 + 复制链接） */
+      await showWxShare(filename);
+    }else if(share&&navigator.canShare&&navigator.canShare({files:[file]})){
       try{
         await navigator.share({files:[file],title:filename});
         toast('已调起系统分享，选择微信即可发送');
@@ -2491,7 +2707,7 @@ $('#dgCopy').onclick=async()=>{
 };
 $('#dgCam').onclick=async()=>{
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-    toast('此环境无相机 API：请用 Safari/Chrome 打开，且不能在微信内嵌浏览器中','warn');return;
+    toast(isDesktop?'没有可用的摄像头：请检查电脑是否已连接摄像头、且未被其他程序占用，或浏览器未授权':'此环境无相机 API：请用 Safari/Chrome 打开，且不能在微信内嵌浏览器中','warn');return;
   }
   let s=null;
   try{
@@ -2524,10 +2740,9 @@ $('#pmRetry').onclick=async()=>{
   openCamera();
 };
 $('#btnCamera').onclick=()=>{vibrate(10);openCamera();};
-$('#btnGallery').onclick=()=>$('#filePick').click();
 $('#filePick').onchange=e=>{
   const fs=[...e.target.files];e.target.value='';
-  if(fs.length){toast(`已选择 ${fs.length} 张，正在识别裁剪（${defaultMode==='color'?'彩色':'扫描'}模式）…`);enqueue(fs.map(f=>({blob:f,quad:null,shotId:null})));}
+  if(fs.length){toast(`已选择 ${fs.length} 张，正在识别裁剪（${defaultMode==='color'?'彩色':'扫描'}模式）…`);enqueue(fs.map(f=>({blob:f,quad:null,shotId:null,name:null})));}
 };
 $('#camClose').onclick=closeCamera;
 $('#camDone').onclick=closeCamera;
