@@ -67,6 +67,8 @@ main#stage{flex:1;position:relative;background:var(--view);overflow:hidden;displ
 #busyChip{position:absolute;top:48px;left:50%;transform:translateX(-50%);z-index:4;display:none;
   align-items:center;gap:8px;background:rgba(10,14,11,.78);color:#CFE8DB;
   padding:7px 15px;border-radius:99px;font-size:12px;white-space:nowrap}
+#busyBar{width:110px;height:3px;border-radius:2px;background:rgba(207,232,219,.2);overflow:hidden;margin-left:2px}
+#busyBarFill{display:block;height:100%;width:0;border-radius:2px;background:var(--accent-bright);transition:width .25s ease}
 .spinner{width:13px;height:13px;border:2px solid rgba(207,232,219,.25);border-top-color:var(--accent-bright);border-radius:50%;animation:spin .8s linear infinite;flex:none}
 @keyframes spin{to{transform:rotate(360deg)}}
 
@@ -296,7 +298,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.5';
+window.__VER='2.6';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -403,9 +405,12 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.5</div>
+    <div id="verTag">V2.6</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
-    <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
+    <div id="dropHint" style="display:none;position:absolute;inset:0;z-index:30;align-items:center;justify-content:center;background:rgba(20,26,20,.72);pointer-events:none">
+      <div style="padding:14px 22px;border:1.5px dashed #7BE8B0;border-radius:12px;color:#EAF4EE;font-size:15px;letter-spacing:1px;background:rgba(20,26,20,.85)">松开即可导入图片 / ZIP</div>
+    </div>
+    <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span><div id="busyBar" style="display:none"><i id="busyBarFill"></i></div></div>
 
     <div id="emptyState">
       <div class="es-frame"></div>
@@ -653,7 +658,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.5</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.6</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -1846,8 +1851,18 @@ const previewImg=$('#previewImg'),emptyState=$('#emptyState'),filmstrip=$('#film
       scanBeam=$('#scanBeam'),btnExport=$('#btnExport'),expCount=$('#expCount');
 
 function showBusy(t){busyN++;busyChip.style.display='flex';busyTxt.textContent=t;}
-function hideBusy(){busyN=Math.max(0,busyN-1);if(!busyN)busyChip.style.display='none';}
-function setBusyTxt(t){busyTxt.textContent=t;}
+function hideBusy(){busyN=Math.max(0,busyN-1);if(!busyN){busyChip.style.display='none';const b=document.getElementById('busyBar');if(b){b.style.display='none';document.getElementById('busyBarFill').style.width='0';}}}
+function setBusyTxt(t){
+  busyTxt.textContent=t;
+  const m=String(t).match(/^(\D*)\s*(\d+)\s*\/\s*(\d+)$/);
+  const bar=document.getElementById('busyBar'),fill=document.getElementById('busyBarFill');
+  if(m&&+m[3]>0){
+    bar.style.display='block';
+    fill.style.width=Math.round(+m[2]/+m[3]*100)+'%';
+  }else{
+    bar.style.display='none';fill.style.width='0';
+  }
+}
 
 /* ================= 渲染 ================= */
 function renderMeta(){
@@ -2923,6 +2938,43 @@ function syncVerTags(){
   }catch(e){}
 }
 
+/* ================= 桌面拖放导入 =================
+   把图片或 ZIP 拖进窗口任意位置即可导入（桌面专用；手机不受影响） */
+function enableDropImport(){
+  if(!isDesktop)return;
+  let depth=0;
+  const hasFiles=e=>e.dataTransfer&&[...e.dataTransfer.types].includes('Files');
+  window.addEventListener('dragenter',e=>{
+    if(!hasFiles(e))return;
+    depth++;document.getElementById('dropHint').style.display='flex';
+  });
+  window.addEventListener('dragleave',e=>{
+    depth=Math.max(0,depth-1);
+    if(!depth)document.getElementById('dropHint').style.display='none';
+  });
+  window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});
+  window.addEventListener('drop',e=>{
+    e.preventDefault();depth=0;
+    document.getElementById('dropHint').style.display='none';
+    const fs=[...(e.dataTransfer?e.dataTransfer.files:[])];
+    if(!fs.length)return;
+    const zip=fs.find(f=>/\.zip$/i.test(f.name));
+    if(zip&&fs.length===1){
+      showBusy('正在解压 ZIP…');
+      unzipImages(zip).then(imgs=>{
+        hideBusy();
+        if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
+        importSetDocName(zip.name.replace(/\.zip$/i,''));
+        askNaming(imgs,'拖入的压缩包「'+zip.name+'」');
+      }).catch(err=>{hideBusy();toast('ZIP 解析失败：'+(err&&err.message||err),'warn');});
+      return;
+    }
+    const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
+    if(!imgs.length){toast('拖入的文件里没有图片','warn');return;}
+    askNaming(imgs,'拖入');
+  });
+}
+
 /* ================= 桌面拖拽滚动 =================
    缩略图条、导入预览墙等滚动区：电脑上按住鼠标左键拖动即可横向/纵向查看，
    拖动后抑制点击（避免拖完误开编辑器）；触屏设备走原生滚动，不受影响 */
@@ -2933,7 +2985,7 @@ function enableDragScroll(el){
     if(e.pointerType!=='mouse'||e.button!==0)return;
     down=true;moved=0;sx=e.clientX;sy=e.clientY;
     sl=el.scrollLeft;st=el.scrollTop;
-    try{el.setPointerCapture(e.pointerId);}catch(err){}
+    e.preventDefault();  /* 防止图片原生拖拽干扰 */
   });
   window.addEventListener('pointermove',e=>{
     if(!down)return;
@@ -2952,6 +3004,38 @@ function enableDragScroll(el){
 }
 enableDragScroll(document.getElementById('filmstrip'));
 enableDragScroll(document.getElementById('dpThumbGrid'));
+enableDropImport();
+
+/* 桌面键盘舒适度：Esc 关闭最上层弹窗/相机；←/→ 翻页（无弹窗、非相机时） */
+window.addEventListener('keydown',e=>{
+  const anyOpen=document.querySelector('.modal.open');
+  if(e.key==='Escape'){
+    if(anyOpen){
+      const x=anyOpen.querySelector('.card-x')||anyOpen.querySelector('[id$="Close"]');
+      if(x){x.click();e.preventDefault();}
+      return;
+    }
+    if(document.getElementById('camModal').classList.contains('open')){closeCamera();e.preventDefault();}
+    return;
+  }
+  const camOpen=document.getElementById('camModal').classList.contains('open');
+  if(anyOpen||camOpen)return;
+  if(e.key==='ArrowLeft'&&current>0){select(current-1);vibrate(5);}
+  else if(e.key==='ArrowRight'&&current<pages.length-1){select(current+1);vibrate(5);}
+});
+
+/* 桌面滚轮：缩略图条上滚动=横向翻看 */
+function enableWheelH(el){
+  if(!el)return;
+  el.addEventListener('wheel',e=>{
+    if(el.scrollWidth<=el.clientWidth+4)return;
+    if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){
+      el.scrollLeft+=e.deltaY;
+      e.preventDefault();
+    }
+  },{passive:false});
+}
+enableWheelH(document.getElementById('filmstrip'));
 
 /* ================= 启动 ================= */
 (async()=>{
