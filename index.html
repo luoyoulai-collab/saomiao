@@ -124,6 +124,11 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 .modal.center.open{display:flex}
 .card{background:var(--paper);border-radius:18px;width:min(400px,92vw);padding:22px 20px;max-height:86dvh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.4);position:relative}
 .card-title{font-family:'Noto Serif SC',serif;font-weight:900;font-size:18px;letter-spacing:2px;margin-bottom:16px}
+/* 诊断弹窗：标题+关闭按钮吸顶，长内容滚动时不被划走 */
+#diagModal .card{padding-top:0}
+#diagModal .card-hd{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:10px;margin:0 -20px 14px;padding:16px 20px 12px;background:var(--paper);border-radius:18px 18px 0 0;box-shadow:0 8px 16px -12px rgba(0,0,0,.3)}
+#diagModal .card-hd .card-x{position:static;flex:none}
+#diagModal .card-hd .card-title{margin:0;flex:1;min-width:0}
 .card-x{position:absolute;top:10px;right:10px}
 .f-label{display:block;font-size:12px;color:var(--ink2);margin:14px 0 7px;letter-spacing:1px}
 .f-input{width:100%;border:1.5px solid var(--line);background:#FBF9F3;border-radius:10px;padding:12px 13px;font-size:15px;font-family:inherit;color:var(--ink);outline:none}
@@ -282,7 +287,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.2';
+window.__VER='2.3';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -389,7 +394,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.1</div>
+    <div id="verTag">V2.3</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
 
@@ -441,7 +446,7 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div id="shotChip" class="chip">已拍 0</div>
   </div>
   <div class="cam-bottom">
-    <div class="cam-side"><div class="row"><button id="autoChip" class="cam-chip">框选·自动</button><button id="precChip" class="cam-chip">精度·均衡</button></div></div>
+    <div class="cam-side"><div class="row"><button id="autoChip" class="cam-chip">框选·自动</button></div></div>
     <button id="shutter" aria-label="拍照"></button>
     <div class="cam-side">
       <div id="lastShot"><img id="lsImg" alt=""><button id="lsRetake" title="重拍这张"><svg class="ic"><use href="#i-x"/></svg></button></div>
@@ -597,8 +602,10 @@ document.getElementById('fatalCopy').onclick=async function(){
 <!-- 诊断与帮助 -->
 <div class="modal center" id="diagModal">
   <div class="card">
-    <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
-    <div class="card-title">诊断与帮助 <span style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.2</span></div>
+    <div class="card-hd">
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.3</span></div>
+      <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
 
     <label class="f-label" style="margin-top:0">环境自检</label>
     <div id="dgList"></div>
@@ -613,7 +620,7 @@ document.getElementById('fatalCopy').onclick=async function(){
     <label class="f-label">常见问题</label>
     <div class="help-list">
       <p><b>识别引擎是什么？</b>v2.0 采用「白色区域分割」引擎（类似魔术棒）：按容差阈值选出亮色区域 → 填充字迹孔洞 → 取最大白色连通块 → 生成预选框，再与 Canny 边缘法竞争取优。纸张出框、占满画面也能识别。</p>
-      <p><b>精度档位是什么？</b>相机页左下「精度」可切换：高精度=框贴纸边、容差低，可能裁掉部分边缘信息；均衡=默认，速度与准确兼顾；保真=宁可多留边缘，优先保证信息完整。按一下循环切换。</p>
+      <p><b>框选精度是多少？</b>固定为高精度自动识别：框紧贴纸边、容差低，追求准确框选。若个别纸张边缘被裁掉，可稍拉远手机让纸边露出来，或拖动角点手动微调。</p>
       <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可拖动四个角点手动框选。</p>
       <p><b>拍错一张怎么办？</b>右下角缩略图点红色 × 即撤销重拍；无视它继续按快门就是下一张。</p>
       <p><b>彩色 / 扫描？</b>「彩色」只裁剪保原色；「扫描」=裁剪+去阴影白底。切换在图片下方工具条。</p>
@@ -674,19 +681,15 @@ refreshCamPerm();
 setInterval(refreshCamPerm,8000);
 
 /* ================= 精度档位 =================
-   high  高精度：阈值更严（容差低），框贴纸边，允许裁掉部分边缘信息
-   mid   均衡：默认，兼顾准确与信息保留
-   low   保真：阈值更宽（容差高），框外扩，优先保留完整信息 */
-let precLevel=(function(){try{return localStorage.getItem('inkcase_prec')||'mid';}catch(e){return 'mid';}})();
-function savePrec(){try{localStorage.setItem('inkcase_prec',precLevel);}catch(e){}}
-function precNum(){return precLevel==='high'?0:precLevel==='low'?2:1;}
+   v2.3 起固定高精度（容差低、框贴纸边、优先准确框选），
+   保留档位参数结构以便日后需要时快速恢复其他档位 */
+const precLevel='high';
+function precNum(){return 0;}
 /* UI 层参数（主线程用；引擎参数见 precParams，随消息传入 Worker） */
 const PREC_UI={
-  high:{padWait:700,minScore:0.45,refineSide:480,label:'高精度',tip:'高精度：框贴纸边，边缘信息可能被裁掉'},
-  mid:{padWait:450,minScore:0.4,refineSide:440,label:'均衡',tip:'均衡：识别速度与框选准确度兼顾'},
-  low:{padWait:450,minScore:0.35,refineSide:400,label:'保真',tip:'保真：宁可多留边缘，不丢信息'}
+  high:{padWait:700,minScore:0.45,refineSide:480,label:'高精度',tip:'高精度：框贴纸边，边缘信息可能被裁掉'}
 };
-function precCfg(){return PREC_UI[precLevel]||PREC_UI.mid;}
+function precCfg(){return PREC_UI.high;}
 
 /* ================================================================
    CV 引擎（纯函数，主线程与 Worker 共享）
@@ -2178,23 +2181,6 @@ $('#autoChip').onclick=()=>{
   toast(autoCropOn?'自动框选已开启：绿框锁定白纸，快门只拍框内':'自动框选已关闭：快门将拍摄全图');
 };
 
-/* 精度档位切换：高精度 → 均衡 → 保真 循环 */
-const PREC_ORDER=['high','mid','low'];
-function syncPrecChip(){
-  const b=$('#precChip');
-  b.textContent='精度·'+precCfg().label;
-}
-$('#precChip').onclick=()=>{
-  if(!PREC_ORDER.includes(precLevel))precLevel='mid';
-  const i=PREC_ORDER.indexOf(precLevel);
-  precLevel=PREC_ORDER[(i+1)%PREC_ORDER.length];
-  savePrec();syncPrecChip();
-  /* 档位变了，旧框作废，立即按新档位重新识别 */
-  Edge.quad=null;Edge.disp=null;Edge.target=null;Edge.confident=false;Edge.lost=0;
-  vibrate(8);
-  toast(precCfg().tip);
-};
-
 
 async function openCamera(){
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
@@ -2685,10 +2671,20 @@ $('#btnClear').onclick=()=>{
 $('#cfmNo').onclick=()=>closeM($('#cfmModal'));
 $('#cfmYes').onclick=()=>{closeM($('#cfmModal'));cfCb&&cfCb();cfCb=null;};
 
+/* 版本号唯一来源：verTag（预览台左下）与诊断弹窗标题均由 __VER 填充 */
+function syncVerTags(){
+  try{
+    const vt=document.getElementById('verTag');
+    if(vt)vt.textContent='V'+window.__VER;
+    const dv=document.getElementById('dgVer');
+    if(dv)dv.textContent='v'+window.__VER;
+  }catch(e){}
+}
+
 /* ================= 启动 ================= */
 (async()=>{
   syncAutoChip();
-  syncPrecChip();
+  syncVerTags();
   const ok=await DB.open();
   state.dbOk=ok;
   if(ok){
