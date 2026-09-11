@@ -125,6 +125,9 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 .card{background:var(--paper);border-radius:18px;width:min(400px,92vw);padding:22px 20px;max-height:86dvh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.4);position:relative}
 .card-title{font-family:'Noto Serif SC',serif;font-weight:900;font-size:18px;letter-spacing:2px;margin-bottom:16px}
 /* 诊断弹窗：标题+关闭按钮吸顶，长内容滚动时不被划走 */
+.modal.center#wxModal{z-index:75}
+.modal.center#nameAskModal{z-index:70}
+.modal.center#desktopPickModal{z-index:70}
 #diagModal .card{padding-top:0}
 #diagModal .card-hd{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:10px;margin:0 -20px 14px;padding:16px 20px 12px;background:var(--paper);border-radius:18px 18px 0 0;box-shadow:0 8px 16px -12px rgba(0,0,0,.3)}
 #diagModal .card-hd .card-x{position:static;flex:none}
@@ -508,9 +511,11 @@ document.getElementById('fatalCopy').onclick=async function(){
     <button id="dpZip" class="btn dark"><svg class="ic"><use href="#i-file"/></svg>导入 ZIP 压缩包</button>
     <button id="dpImgs" class="btn ghost"><svg class="ic"><use href="#i-images"/></svg>选择图片（可多选）</button>
     <div id="dpImgsDone" style="display:none">
-      <p id="dpSelTxt" style="font-size:14px;color:var(--ink2);margin:6px 0 10px"></p>
+      <p id="dpSelTxt" style="font-size:14px;color:var(--ink2);margin:6px 0 8px"></p>
+      <div id="dpThumbGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:8px;margin-bottom:12px;max-height:34dvh;overflow:auto"></div>
+      <button id="dpMore" class="btn ghost"><svg class="ic"><use href="#i-plus"/></svg>继续添加</button>
       <button id="dpUpload" class="btn accent"><svg class="ic"><use href="#i-check"/></svg>上传</button>
-      <button id="dpRechoose" class="btn ghost">重新选择</button>
+      <button id="dpClear" class="btn ghost">清空重选</button>
     </div>
     <p class="fine">文件夹 / ZIP 会以名称作为文档名，导入后自动识别裁剪。</p>
   </div>
@@ -1690,21 +1695,22 @@ function makePDF(imgs){
   const enc=new TextEncoder(),chunks=[];let pos=0;const offsets=[];
   const push=s=>{const b=typeof s==='string'?enc.encode(s):s;chunks.push(b);pos+=b.length;};
   push(new Uint8Array([0x25,0x50,0x44,0x46,0x2D,0x31,0x2E,0x34,0x0A,0x25,0xE2,0xE3,0xCF,0xD3,0x0A]));
-  const n=imgs.length,total=2*n+3;
+  /* 每页 3 个对象：页(3+3i) / 内容流(4+3i) / 图片(5+3i)，此前 3+2i 会撞号导致前几页白屏 */
+  const n=imgs.length,total=2+3*n;
   offsets[1]=pos;push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
   offsets[2]=pos;
-  let kids='';for(let i=0;i<n;i++)kids+=`${3+2*i} 0 R `;
+  let kids='';for(let i=0;i<n;i++)kids+=`${3+3*i} 0 R `;
   push(`2 0 obj\n<< /Type /Pages /Kids [ ${kids}] /Count ${n} >>\nendobj\n`);
   for(let i=0;i<n;i++){
     const w=imgs[i].w,h=imgs[i].h,s=842/Math.max(w,h);
     const pw=(w*s).toFixed(2),ph=(h*s).toFixed(2);
-    offsets[3+2*i]=pos;
-    push(`${3+2*i} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Contents ${4+2*i} 0 R /Resources << /XObject << /Im${i} ${5+2*i} 0 R >> >> >>\nendobj\n`);
+    offsets[3+3*i]=pos;
+    push(`${3+3*i} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pw} ${ph}] /Contents ${4+3*i} 0 R /Resources << /XObject << /Im${i} ${5+3*i} 0 R >> >> >>\nendobj\n`);
     const content=`q ${pw} 0 0 ${ph} 0 0 cm /Im${i} Do Q`;
-    offsets[4+2*i]=pos;
-    push(`${4+2*i} 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
-    offsets[5+2*i]=pos;
-    push(`${5+2*i} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgs[i].data.length} >>\nstream\n`);
+    offsets[4+3*i]=pos;
+    push(`${4+3*i} 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`);
+    offsets[5+3*i]=pos;
+    push(`${5+3*i} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${w} /Height ${h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imgs[i].data.length} >>\nstream\n`);
     push(imgs[i].data);
     push('\nendstream\nendobj\n');
   }
@@ -2092,24 +2098,39 @@ $('#zipPick').onchange=async e=>{
     toast('ZIP 解析失败：'+(err&&err.message||err),'warn');
   }
 };
-/* 桌面多选图片：先暂存，点「上传」才开始 */
+/* 桌面多选图片：累计添加 + 缩略图预览，可反复补充，确认后统一上传 */
+let dpUrls=[];
+function renderDpSel(){
+  const done=$('#dpImgsDone'),grid=$('#dpThumbGrid');
+  dpUrls.forEach(u=>{try{URL.revokeObjectURL(u);}catch(e){}});
+  dpUrls=[];
+  grid.innerHTML='';
+  if(!dpSelFiles.length){done.style.display='none';return;}
+  dpSelFiles.forEach((f,idx)=>{
+    const u=URL.createObjectURL(f.blob);
+    dpUrls.push(u);
+    const cell=document.createElement('div');
+    cell.style.cssText='position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--line);aspect-ratio:1;background:#eee';
+    cell.innerHTML='<img src="'+u+'" style="width:100%;height:100%;object-fit:cover" alt="">'+
+      '<button data-i="'+idx+'" title="移除" style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:12px;line-height:20px;cursor:pointer">×</button>';
+    grid.appendChild(cell);
+  });
+  grid.querySelectorAll('button[data-i]').forEach(b=>{
+    b.onclick=()=>{dpSelFiles.splice(+b.dataset.i,1);renderDpSel();};
+  });
+  $('#dpSelTxt').textContent='已选择 '+dpSelFiles.length+' 张图片，可继续添加或移除，确认后统一上传。';
+  done.style.display='block';
+}
 $('#imgPickDesktop').onchange=e=>{
   const fs=[...e.target.files].filter(f=>ZIP_IMG_RE.test(f.name));e.target.value='';
-  dpSelFiles=fs.map(f=>({blob:f,name:f.name}));
-  const done=$('#dpImgsDone');
-  if(dpSelFiles.length){
-    $('#dpSelTxt').textContent='已选择 '+dpSelFiles.length+' 张图片，确认后开始导入。';
-    done.style.display='block';
-    $('#dpImgs').textContent='重新选择图片';
-  }else{
-    done.style.display='none';
-  }
+  dpSelFiles.push(...fs.map(f=>({blob:f,name:f.name})));
+  renderDpSel();
 };
-$('#dpRechoose').onclick=()=>{dpSelFiles=[];$('#dpImgsDone').style.display='none';$('#dpImgs').click();};
+$('#dpMore').onclick=()=>$('#imgPickDesktop').click();
+$('#dpClear').onclick=()=>{dpSelFiles=[];renderDpSel();};
 $('#dpUpload').onclick=()=>{
   const files=dpSelFiles;dpSelFiles=[];
-  $('#dpImgsDone').style.display='none';
-  $('#dpImgs').textContent='选择图片（可多选）';
+  renderDpSel();
   closeM($('#desktopPickModal'));
   askNaming(files,'本地选择');
 };
