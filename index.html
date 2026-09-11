@@ -99,6 +99,12 @@ main#stage{flex:1;position:relative;background:var(--view);overflow:hidden;displ
 #filmstrip{display:flex;gap:8px;padding:9px 14px;overflow-x:auto;flex:none;min-height:106px;align-items:center;
   background:var(--paper);border-top:1px solid var(--line);scrollbar-width:none}
 #filmstrip::-webkit-scrollbar{display:none}
+@media (hover:hover) and (pointer:fine){
+  #filmstrip{cursor:grab}
+  #filmstrip:active{cursor:grabbing}
+  #dpThumbGrid{cursor:grab}
+  #dpThumbGrid:active{cursor:grabbing}
+}
 .fs-item{flex:0 0 auto;width:62px;position:relative;cursor:pointer}
 .fs-item img{width:62px;height:80px;object-fit:cover;border-radius:5px;background:#fff;border:2px solid transparent;display:block;box-shadow:0 2px 8px rgba(0,0,0,.12)}
 .fs-item.cur img{border-color:var(--accent)}
@@ -290,7 +296,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.4';
+window.__VER='2.5';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -397,7 +403,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.4</div>
+    <div id="verTag">V2.5</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="busyChip"><div class="spinner"></div><span id="busyTxt">处理中…</span></div>
 
@@ -647,7 +653,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.4</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.5</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -2916,6 +2922,36 @@ function syncVerTags(){
     if(dv)dv.textContent='v'+window.__VER;
   }catch(e){}
 }
+
+/* ================= 桌面拖拽滚动 =================
+   缩略图条、导入预览墙等滚动区：电脑上按住鼠标左键拖动即可横向/纵向查看，
+   拖动后抑制点击（避免拖完误开编辑器）；触屏设备走原生滚动，不受影响 */
+function enableDragScroll(el){
+  if(!el)return;
+  let down=false,sx=0,sy=0,sl=0,st=0,moved=0;
+  el.addEventListener('pointerdown',e=>{
+    if(e.pointerType!=='mouse'||e.button!==0)return;
+    down=true;moved=0;sx=e.clientX;sy=e.clientY;
+    sl=el.scrollLeft;st=el.scrollTop;
+    try{el.setPointerCapture(e.pointerId);}catch(err){}
+  });
+  window.addEventListener('pointermove',e=>{
+    if(!down)return;
+    const dx=e.clientX-sx,dy=e.clientY-sy;
+    moved=Math.max(moved,Math.abs(dx),Math.abs(dy));
+    el.scrollLeft=sl-dx;
+    el.scrollTop=st-dy;
+  });
+  const end=()=>{down=false;};
+  window.addEventListener('pointerup',end);
+  window.addEventListener('pointercancel',end);
+  el.addEventListener('click',e=>{
+    if(moved>6){e.preventDefault();e.stopPropagation();}
+    moved=0;
+  },true);
+}
+enableDragScroll(document.getElementById('filmstrip'));
+enableDragScroll(document.getElementById('dpThumbGrid'));
 
 /* ================= 启动 ================= */
 (async()=>{
