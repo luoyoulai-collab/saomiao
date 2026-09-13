@@ -566,6 +566,24 @@ document.getElementById('fatalCopy').onclick=async function(){
   </div>
 </div>
 
+<!-- 电脑端分享指引：网页无法调起 PC 微信，自动下载 + 指引用户自行发送 -->
+<div class="modal center" id="wxPcModal" style="z-index:78">
+  <div class="card" style="text-align:center;max-width:340px">
+    <button class="icon-btn card-x" id="wpcClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="card-title">文件已下载</div>
+    <p style="font-size:14px;color:var(--ink2);line-height:1.8;margin:8px 0 4px">电脑版微信无法从网页直接调起分享，文件已自动下载：</p>
+    <p id="wpcFile" style="font-size:13px;font-weight:600;color:var(--accent);word-break:break-all;margin:4px 0 10px"></p>
+    <div style="text-align:left;background:rgba(0,0,0,.04);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+      <p style="font-size:13px;color:var(--ink2);line-height:2;margin:0">
+        1. 打开电脑微信，进入聊天窗口<br>
+        2. 把刚下载的文件<b>拖进聊天框</b>，或点「＋ → 文件」选择它<br>
+        3. 点击发送即可
+      </p>
+    </div>
+    <button id="wpcOk" class="btn accent">知道了</button>
+  </div>
+</div>
+
 <!-- 单页命名 -->
 <div class="modal center" id="pageNameModal">
   <div class="card">
@@ -2693,6 +2711,8 @@ async function showWxShare(filename){
   openM(m);
 }
 $('#wxClose').onclick=()=>closeM($('#wxModal'));
+$('#wpcClose').onclick=()=>closeM($('#wxPcModal'));
+$('#wpcOk').onclick=()=>closeM($('#wxPcModal'));
 $('#wxCopy').onclick=async()=>{
   try{
     await navigator.clipboard.writeText(location.href);
@@ -2726,6 +2746,15 @@ async function doExport(share){
     if(share&&isWeChat){
       /* 微信内置浏览器调不起分享面板：改走小窗预览（长按保存/转发 + 复制链接） */
       await showWxShare(filename);
+    }else if(share&&isDesktop){
+      /* 电脑端：PC 微信不注册系统分享目标，navigator.share 面板里选不到微信；
+         直接下载并给出明确指引，用户拖进微信聊天框即可发送 */
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);a.download=filename;
+      document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+      $('#wpcFile').textContent=filename;
+      openM($('#wxPcModal'));
     }else if(share&&navigator.canShare&&navigator.canShare({files:[file]})){
       try{
         await navigator.share({files:[file],title:filename});
