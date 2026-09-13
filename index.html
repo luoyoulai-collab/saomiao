@@ -2092,12 +2092,47 @@ $('#btnGallery').onclick=()=>{
   else $('#filePick').click();
 };
 $('#dpClose').onclick=()=>closeM($('#desktopPickModal'));
-$('#dpDir').onclick=()=>$('#dirPick').click();
-$('#dpZip').onclick=()=>$('#zipPick').click();
-$('#dpImgs').onclick=()=>$('#imgPickDesktop').click();
+
+/* 即时检测提示：点击按钮瞬间就显示"正在检测"，覆盖系统文件对话框与浏览器枚举大目录
+   的整个空窗期；用户取消选择时自动收起。 */
+let pendingPick=false;
+function pickPrompt(msg){
+  pickResolve();                      /* 防重入：先清旧状态 */
+  showBusy(msg);
+  pendingPick=true;
+  busyChip.style.cursor='pointer';
+  busyChip.title='点击这里取消';
+}
+function pickResolve(){
+  if(!pendingPick)return;
+  pendingPick=false;
+  busyChip.style.cursor='';busyChip.title='';
+  hideBusy();
+}
+/* 提示条可点击取消（仅在等待选择状态） */
+busyChip.addEventListener('click',()=>{if(pendingPick)pickResolve();});
+/* 系统对话框关闭后窗口重新聚焦：轮询文件是否就绪；15 秒仍无则视为已取消，静默收起 */
+function armPickWatch(input){
+  const iters=window.__PICK_ITERS||30;
+  const onF=async()=>{
+    window.removeEventListener('focus',onF);
+    for(let i=0;i<iters;i++){
+      await new Promise(r=>setTimeout(r,500));
+      if(!pendingPick)return;                    /* 已正常进入检索流程 */
+      if(input.files&&input.files.length)return; /* 枚举完成，change 即将触发 */
+    }
+    if(pendingPick)pickResolve();
+  };
+  window.addEventListener('focus',onF);
+}
+$('#dpDir').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择文件夹');armPickWatch($('#dirPick'));$('#dirPick').click();};
+$('#dpZip').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择 ZIP 压缩包');armPickWatch($('#zipPick'));$('#zipPick').click();};
+$('#dpImgs').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择图片');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
+$('#dpMore').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择图片');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
 
 /* 文件夹：名称作文档名，图片全部导入 */
 $('#dirPick').onchange=async e=>{
+  pickResolve();
   const fs=[...e.target.files];e.target.value='';
   closeM($('#desktopPickModal'));
   if(!fs.length)return;
@@ -2111,6 +2146,7 @@ $('#dirPick').onchange=async e=>{
 };
 /* ZIP：本机解压 → 名称（去 .zip）作文档名 */
 $('#zipPick').onchange=async e=>{
+  pickResolve();
   const f=e.target.files[0];e.target.value='';
   closeM($('#desktopPickModal'));
   if(!f)return;
@@ -2151,11 +2187,11 @@ function renderDpSel(){
   done.style.display='block';
 }
 $('#imgPickDesktop').onchange=e=>{
+  pickResolve();
   const fs=[...e.target.files].filter(f=>ZIP_IMG_RE.test(f.name));e.target.value='';
   dpSelFiles.push(...fs.map(f=>({blob:f,name:f.name})));
   renderDpSel();
 };
-$('#dpMore').onclick=()=>$('#imgPickDesktop').click();
 $('#dpClear').onclick=()=>{dpSelFiles=[];renderDpSel();};
 $('#dpUpload').onclick=()=>{
   const files=dpSelFiles;dpSelFiles=[];
