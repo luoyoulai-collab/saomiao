@@ -2011,7 +2011,7 @@ function zipMime(n){
     'bmp':'image/bmp','webp':'image/webp','tif':'image/tiff','tiff':'image/tiff',
     'heic':'image/heic','heif':'image/heif'})[e]||'application/octet-stream';
 }
-async function unzipImages(file){
+async function unzipImages(file,onProg){
   const buf=new Uint8Array(await file.arrayBuffer());
   const dv=new DataView(buf.buffer);
   /* 定位 End of Central Directory（从尾部向前找，最多回溯 64KB+22） */
@@ -2023,8 +2023,10 @@ async function unzipImages(file){
   const cnt=dv.getUint16(eocd+10,true);
   let off=dv.getUint32(eocd+16,true);
   const out=[];
+  let seen=0;
   for(let n=0;n<cnt;n++){
     if(off+46>buf.length||dv.getUint32(off,true)!==0x02014b50)break;
+    if(onProg&&(++seen%6===1||n===cnt-1)){onProg(n+1,cnt);await tick();}
     const method=dv.getUint16(off+10,true);
     const csize=dv.getUint32(off+20,true);
     const nlen=dv.getUint16(off+28,true),elen=dv.getUint16(off+30,true),clen=dv.getUint16(off+32,true);
@@ -2063,10 +2065,12 @@ function importSetDocName(name){
   const v=safeFileName(name);
   if(v){docName=v;saveName();renderMeta();toast('文档名已设为「'+v+'」');}
 }
-function askNaming(files,srcLabel){
+function askNaming(files,srcLabel,stat){
   if(!files.length){toast('没有找到可导入的图片','warn');return;}
   pendImport=files;
-  $('#naText').textContent='已从'+srcLabel+'导入 '+files.length+' 张图片。是否使用原图片名作为每页名称？';
+  let txt='已从'+srcLabel+'筛选出 '+files.length+' 张图片';
+  if(stat&&stat.total)txt='已检索'+srcLabel+'：共 '+stat.total+' 个文件，其中图片 '+stat.imgs+' 张，已筛选 '+files.length+' 张待上传';
+  $('#naText').textContent=txt+'。是否使用原图片名作为每页名称？';
   openM($('#nameAskModal'));
 }
 function commitImport(useOrig){
@@ -2097,19 +2101,23 @@ $('#dirPick').onchange=async e=>{
   const fs=[...e.target.files];e.target.value='';
   closeM($('#desktopPickModal'));
   if(!fs.length)return;
+  showBusy('正在检索文件夹…');await tick();
   const folder=(fs[0].webkitRelativePath||'').split('/')[0]||'导入文档';
   const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
+  setBusyTxt('已检索 '+fs.length+' 个文件 · 图片 '+imgs.length+' 张');await tick();
+  hideBusy();
   importSetDocName(folder);
-  askNaming(imgs,'文件夹「'+folder+'」');
+  askNaming(imgs,'文件夹「'+folder+'」',{total:fs.length,imgs:imgs.length});
 };
 /* ZIP：本机解压 → 名称（去 .zip）作文档名 */
 $('#zipPick').onchange=async e=>{
   const f=e.target.files[0];e.target.value='';
   closeM($('#desktopPickModal'));
   if(!f)return;
-  showBusy('正在解压 ZIP…');
+  showBusy('正在解压 ZIP…');await tick();
   try{
-    const imgs=await unzipImages(f);
+    const imgs=await unzipImages(f,(i,c)=>setBusyTxt('正在解压 '+i+'/'+c));
+    setBusyTxt('已解出 '+imgs.length+' 张图片');await tick();
     hideBusy();
     if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
     importSetDocName(f.name.replace(/\.zip$/i,''));
@@ -2174,6 +2182,7 @@ async function pump(){
       captureErr('处理',e&&e.message||String(e));
     }
   }
+  if(qDone>0){setBusyTxt('已完成 '+qDone+'/'+qDone);await new Promise(r=>setTimeout(r,700));}
   qTotal=0;qDone=0;working=false;hideBusy();
 }
 async function addPhoto(blob,presetQuad,shotId,presetName){
@@ -2953,20 +2962,22 @@ function enableDropImport(){
     if(!depth)document.getElementById('dropHint').style.display='none';
   });
   window.addEventListener('dragover',e=>{if(hasFiles(e))e.preventDefault();});
-  window.addEventListener('drop',e=>{
+  window.addEventListener('drop',async e=>{
     e.preventDefault();depth=0;
     document.getElementById('dropHint').style.display='none';
     const fs=[...(e.dataTransfer?e.dataTransfer.files:[])];
     if(!fs.length)return;
     const zip=fs.find(f=>/\.zip$/i.test(f.name));
     if(zip&&fs.length===1){
-      showBusy('正在解压 ZIP…');
-      unzipImages(zip).then(imgs=>{
+      showBusy('正在解压 ZIP…');await tick();
+      try{
+        const imgs=await unzipImages(zip,(i,c)=>setBusyTxt('正在解压 '+i+'/'+c));
+        setBusyTxt('已解出 '+imgs.length+' 张图片');await tick();
         hideBusy();
         if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
         importSetDocName(zip.name.replace(/\.zip$/i,''));
         askNaming(imgs,'拖入的压缩包「'+zip.name+'」');
-      }).catch(err=>{hideBusy();toast('ZIP 解析失败：'+(err&&err.message||err),'warn');});
+      }catch(err){hideBusy();toast('ZIP 解析失败：'+(err&&err.message||err),'warn');}
       return;
     }
     const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
