@@ -544,6 +544,18 @@ document.getElementById('fatalCopy').onclick=async function(){
 </div>
 
 <!-- 微信内分享小窗 -->
+<!-- 导入进度弹窗：盖住导入入口弹窗，全程反馈检测/解压/统计 -->
+<div class="modal center" id="pickModal" style="z-index:80">
+  <div class="card" style="text-align:center;min-width:300px">
+    <button class="icon-btn card-x" id="pickClose"><svg class="ic"><use href="#i-x"/></svg></button>
+    <div class="card-title" id="pickTitle">正在检测</div>
+    <div class="spinner" style="margin:14px auto 10px;width:22px;height:22px;border-width:3px"></div>
+    <p id="pickText" style="font-size:14px;color:var(--ink2);line-height:1.8;margin:0 0 16px">…</p>
+    <div id="pickBar" style="display:none;width:100%;height:6px;border-radius:3px;background:rgba(0,0,0,.08);overflow:hidden;margin-bottom:16px"><i id="pickBarFill" style="display:block;height:100%;width:0;background:var(--accent);transition:width .2s ease"></i></div>
+    <button id="pickCancel" class="btn ghost">取消</button>
+  </div>
+</div>
+
 <div class="modal center" id="wxModal">
   <div class="card">
     <button class="icon-btn card-x" id="wxClose"><svg class="ic"><use href="#i-x"/></svg></button>
@@ -2096,21 +2108,29 @@ $('#dpClose').onclick=()=>closeM($('#desktopPickModal'));
 /* 即时检测提示：点击按钮瞬间就显示"正在检测"，覆盖系统文件对话框与浏览器枚举大目录
    的整个空窗期；用户取消选择时自动收起。 */
 let pendingPick=false;
-function pickPrompt(msg){
+const pickModal=document.getElementById('pickModal');
+function pickStage(title,text){
+  document.getElementById('pickTitle').textContent=title;
+  document.getElementById('pickText').textContent=text||'';
+}
+function pickProg(i,c){
+  const w=document.getElementById('pickBar');
+  if(!c)return;
+  w.style.display='block';
+  document.getElementById('pickBarFill').style.width=Math.round(i/c*100)+'%';
+}
+function pickPrompt(title,text){
   pickResolve();                      /* 防重入：先清旧状态 */
-  showBusy(msg);
-  pendingPick=true;
-  busyChip.style.cursor='pointer';
-  busyChip.title='点击这里取消';
+  openM(pickModal);
+  pickStage(title,text);
+  document.getElementById('pickBar').style.display='none';
+  document.getElementById('pickCancel').disabled=false;
+  pendingPick=true;                   /* 等待用户在系统窗口中做选择 */
 }
 function pickResolve(){
-  if(!pendingPick)return;
   pendingPick=false;
-  busyChip.style.cursor='';busyChip.title='';
-  hideBusy();
+  closeM(pickModal);
 }
-/* 提示条可点击取消（仅在等待选择状态） */
-busyChip.addEventListener('click',()=>{if(pendingPick)pickResolve();});
 /* 系统对话框关闭后窗口重新聚焦：轮询文件是否就绪；15 秒仍无则视为已取消，静默收起 */
 function armPickWatch(input){
   const iters=window.__PICK_ITERS||30;
@@ -2125,41 +2145,47 @@ function armPickWatch(input){
   };
   window.addEventListener('focus',onF);
 }
-$('#dpDir').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择文件夹');armPickWatch($('#dirPick'));$('#dirPick').click();};
-$('#dpZip').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择 ZIP 压缩包');armPickWatch($('#zipPick'));$('#zipPick').click();};
-$('#dpImgs').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择图片');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
-$('#dpMore').onclick=()=>{pickPrompt('正在检测：请在弹出的窗口中选择图片');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
+$('#pickCancel').onclick=pickResolve;
+$('#pickClose').onclick=pickResolve;
+$('#dpDir').onclick=()=>{pickPrompt('正在检测','正在等待选择文件夹…请在弹出的系统窗口中点「上传」确认');armPickWatch($('#dirPick'));$('#dirPick').click();};
+$('#dpZip').onclick=()=>{pickPrompt('正在检测','正在等待选择 ZIP 压缩包…请在弹出的系统窗口中确认');armPickWatch($('#zipPick'));$('#zipPick').click();};
+$('#dpImgs').onclick=()=>{pickPrompt('正在检测','正在等待选择图片…请在弹出的系统窗口中确认');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
+$('#dpMore').onclick=()=>{pickPrompt('正在检测','正在等待选择图片…请在弹出的系统窗口中确认');armPickWatch($('#imgPickDesktop'));$('#imgPickDesktop').click();};
 
 /* 文件夹：名称作文档名，图片全部导入 */
 $('#dirPick').onchange=async e=>{
-  pickResolve();
+  pendingPick=false;
+  document.getElementById('pickCancel').disabled=true;   /* 已确认选择，流程不可逆 */
   const fs=[...e.target.files];e.target.value='';
   closeM($('#desktopPickModal'));
-  if(!fs.length)return;
-  showBusy('正在检索文件夹…');await tick();
+  if(!fs.length){pickResolve();return;}
+  pickStage('正在检索文件夹…','正在统计文件数量，大文件夹可能需要一些时间');await tick();
   const folder=(fs[0].webkitRelativePath||'').split('/')[0]||'导入文档';
   const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
-  setBusyTxt('已检索 '+fs.length+' 个文件 · 图片 '+imgs.length+' 张');await tick();
-  hideBusy();
+  pickStage('检测完成','共 '+fs.length+' 个文件，其中图片 '+imgs.length+' 张，即将开始上传');
+  await new Promise(r=>setTimeout(r,900));
+  pickResolve();
   importSetDocName(folder);
   askNaming(imgs,'文件夹「'+folder+'」',{total:fs.length,imgs:imgs.length});
 };
 /* ZIP：本机解压 → 名称（去 .zip）作文档名 */
 $('#zipPick').onchange=async e=>{
-  pickResolve();
+  pendingPick=false;
+  document.getElementById('pickCancel').disabled=true;
   const f=e.target.files[0];e.target.value='';
   closeM($('#desktopPickModal'));
-  if(!f)return;
-  showBusy('正在解压 ZIP…');await tick();
+  if(!f){pickResolve();return;}
+  pickStage('正在解压 ZIP…','正在本机解压压缩包，无需上传原文件');await tick();
   try{
-    const imgs=await unzipImages(f,(i,c)=>setBusyTxt('正在解压 '+i+'/'+c));
-    setBusyTxt('已解出 '+imgs.length+' 张图片');await tick();
-    hideBusy();
+    const imgs=await unzipImages(f,(i,c)=>{pickProg(i,c);pickStage('正在解压 ZIP…','正在解压 '+i+' / '+c);});
+    pickStage('解压完成','已解出 '+imgs.length+' 张图片，即将开始上传');
+    await new Promise(r=>setTimeout(r,900));
+    pickResolve();
     if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
     importSetDocName(f.name.replace(/\.zip$/i,''));
     askNaming(imgs,'压缩包「'+f.name+'」');
   }catch(err){
-    hideBusy();
+    pickResolve();
     toast('ZIP 解析失败：'+(err&&err.message||err),'warn');
   }
 };
@@ -3005,15 +3031,17 @@ function enableDropImport(){
     if(!fs.length)return;
     const zip=fs.find(f=>/\.zip$/i.test(f.name));
     if(zip&&fs.length===1){
-      showBusy('正在解压 ZIP…');await tick();
+      pickPrompt('正在解压 ZIP…','正在本机解压压缩包，无需上传原文件');
+      document.getElementById('pickCancel').disabled=true;
       try{
-        const imgs=await unzipImages(zip,(i,c)=>setBusyTxt('正在解压 '+i+'/'+c));
-        setBusyTxt('已解出 '+imgs.length+' 张图片');await tick();
-        hideBusy();
+        const imgs=await unzipImages(zip,(i,c)=>{pickProg(i,c);pickStage('正在解压 ZIP…','正在解压 '+i+' / '+c);});
+        pickStage('解压完成','已解出 '+imgs.length+' 张图片，即将开始上传');
+        await new Promise(r=>setTimeout(r,900));
+        pickResolve();
         if(!imgs.length){toast('压缩包里没有找到图片文件','warn');return;}
         importSetDocName(zip.name.replace(/\.zip$/i,''));
         askNaming(imgs,'拖入的压缩包「'+zip.name+'」');
-      }catch(err){hideBusy();toast('ZIP 解析失败：'+(err&&err.message||err),'warn');}
+      }catch(err){pickResolve();toast('ZIP 解析失败：'+(err&&err.message||err),'warn');}
       return;
     }
     const imgs=fs.filter(f=>ZIP_IMG_RE.test(f.name)).map(f=>({blob:f,name:f.name}));
@@ -3055,7 +3083,8 @@ enableDropImport();
 
 /* 桌面键盘舒适度：Esc 关闭最上层弹窗/相机；←/→ 翻页（无弹窗、非相机时） */
 window.addEventListener('keydown',e=>{
-  const anyOpen=document.querySelector('.modal.open');
+  const allOpen=document.querySelectorAll('.modal.open');
+  const anyOpen=allOpen.length?allOpen[allOpen.length-1]:null;
   if(e.key==='Escape'){
     if(anyOpen){
       const x=anyOpen.querySelector('.card-x')||anyOpen.querySelector('[id$="Close"]');
