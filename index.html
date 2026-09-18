@@ -201,6 +201,11 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 #flashFx{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:6}
 #flashFx.go{animation:flashfx .32s ease-out}
 @keyframes flashfx{0%{opacity:.85}100%{opacity:0}}
+/* v2.8 点选识别：点按位置波纹反馈 */
+.tap-ripple{position:absolute;width:58px;height:58px;margin:-29px 0 0 -29px;
+  border:2.5px solid var(--accent-bright);border-radius:50%;pointer-events:none;z-index:6;
+  box-shadow:0 0 12px rgba(62,213,152,.5);animation:tripple .65s ease-out forwards}
+@keyframes tripple{0%{transform:scale(.35);opacity:1}70%{opacity:.55}100%{transform:scale(1.3);opacity:0}}
 
 #edModal{background:var(--view);flex-direction:column}
 #edModal.open{display:flex}
@@ -298,7 +303,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.7';
+window.__VER='2.8';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -405,7 +410,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.7</div>
+    <div id="verTag">V2.8</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="dropHint" style="display:none;position:absolute;inset:0;z-index:30;align-items:center;justify-content:center;background:rgba(20,26,20,.72);pointer-events:none">
       <div style="padding:14px 22px;border:1.5px dashed #7BE8B0;border-radius:12px;color:#EAF4EE;font-size:15px;letter-spacing:1px;background:rgba(20,26,20,.85)">松开即可导入图片 / ZIP</div>
@@ -415,7 +420,7 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div id="emptyState">
       <div class="es-frame"></div>
       <div class="es-title">对准即拍 · 框内即所得</div>
-      <div class="es-desc" id="esDesc">当前文档：「扫描件」<br>白色区域分割引擎实时锁定纸张，<br>快门只保留白纸区域内容。</div>
+      <div class="es-desc" id="esDesc">当前文档：「扫描件」<br>智能引擎实时锁定纸张（白纸/红头文件/彩封均可），<br>点按画面可指定识别位置。</div>
       <div class="es-tag">100% ON-DEVICE · ZERO UPLOAD</div>
     </div>
 
@@ -452,11 +457,11 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div class="edge-h" data-i="0"></div><div class="edge-h" data-i="1"></div>
     <div class="edge-h" data-i="2"></div><div class="edge-h" data-i="3"></div>
   </div>
-  <div id="edgeHint">正在识别白纸区域…</div>
+  <div id="edgeHint">正在识别纸张区域…</div>
   <div id="edgeStat">SEG·WORKER</div>
   <div class="cam-top">
     <button id="camClose" class="icon-btn" style="color:#fff"><svg class="ic"><use href="#i-x"/></svg></button>
-    <div class="cam-tip" id="camDocTip">对准文档 · 绿框自动锁定白纸</div>
+    <div class="cam-tip" id="camDocTip">对准文档 · 自动框选，点按画面可指定识别位置</div>
     <div id="shotChip" class="chip">已拍 0</div>
   </div>
   <div class="cam-bottom">
@@ -688,7 +693,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.7</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.8</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -704,9 +709,10 @@ document.getElementById('fatalCopy').onclick=async function(){
 
     <label class="f-label">常见问题</label>
     <div class="help-list">
-      <p><b>识别引擎是什么？</b>v2.7 采用「白色区域分割」引擎（类似魔术棒）：按容差阈值选出亮色区域 → 填充字迹孔洞 → 取最大白色连通块 → 凸包拟合四边形（角点吸附到纸角，斜纸退回最小面积旋转矩形），再与 Canny 边缘法竞争取优。纸张出框、占满画面也能识别。v2.7 全流程改用类型化数组单趟扫描、实时取景时 Canny 隔帧竞争，识别更快、框更贴纸边、绿框更稳。</p>
+      <p><b>识别引擎是什么？</b>v2.8 采用双通道分割引擎：白色纸张沿用「白色区域分割」（按阈值选亮区 → 填充字迹孔洞 → 最大白色连通块 → 凸包拟合四边形，角点吸附纸角）；遇到红头文件、粉选票、蓝封面等彩色纸张，自动切换「彩色分割」——以画面中央为基准取纸张主色、以画面边界取背景色，按颜色差异把纸张从桌面里分出来，纸面反光不再劫持识别框。两种结果与 Canny 边缘法按分数竞争取优，纸张出框、占满画面也能识别。</p>
+      <p><b>彩色纸张框不准怎么办？</b>直接点按画面中要拍的纸张，识别会立刻以点选位置为准重新框选；再点其他位置可随时切换。仍不行就稍微拉远手机让纸边露出桌面，或拖动四个角点手动微调。</p>
       <p><b>框选精度是多少？</b>固定为高精度自动识别：框紧贴纸边、容差低，追求准确框选。若个别纸张边缘被裁掉，可稍拉远手机让纸边露出来，或拖动角点手动微调。</p>
-      <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可拖动四个角点手动框选。</p>
+      <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可点按纸张位置指定识别，或拖动四个角点手动框选。</p>
       <p><b>拍错一张怎么办？</b>右下角缩略图点红色 × 即撤销重拍；无视它继续按快门就是下一张。</p>
       <p><b>彩色 / 扫描？</b>「彩色」只裁剪保原色；「扫描」=裁剪+去阴影白底。切换在图片下方工具条。</p>
       <p><b>文件包怎么用？</b>右上角 📁：拍完一份 → 新建一份自动切换；导出只导出当前文档。</p>
@@ -1080,7 +1086,33 @@ function quadContrast(P,gray,w,h){
   if(diff>=-6)return 0.3;
   return 0.05;
 }
-function scoreQuad(P,pts,gray,w,h){
+/* 对比度（对称版，v2.8）：内外亮度差取绝对值——彩色纸张路径专用。
+   原版只认「内亮外暗」（白纸假设），深色封面配浅色桌面会被直接判死；
+   红头文件/蓝封面/粉选票内外亮度可能任意方向，只要分得开就是好框 */
+function quadContrastSym(P,gray,w,h){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(let i=0;i<4;i++){
+    const p=P[i];
+    if(p.x<x0)x0=p.x;if(p.x>x1)x1=p.x;
+    if(p.y<y0)y0=p.y;if(p.y>y1)y1=p.y;
+  }
+  const cx0=Math.max(0,Math.floor(x0-(x1-x0)*0.15)),cx1=Math.min(w-1,Math.ceil(x1+(x1-x0)*0.15));
+  const cy0=Math.max(0,Math.floor(y0-(y1-y0)*0.15)),cy1=Math.min(h-1,Math.ceil(y1+(y1-y0)*0.15));
+  const step=Math.max(4,Math.round(Math.sqrt(w*h)/40));
+  let inS=0,inN=0,outS=0,outN=0;
+  for(let y=cy0;y<=cy1;y+=step){
+    for(let x=cx0;x<=cx1;x+=step){
+      const v=gray[y*w+x];
+      if(pointInQuad(P,x,y)){inS+=v;inN++;}
+      else{outS+=v;outN++;}
+    }
+  }
+  if(!inN||!outN)return 0.3;
+  const ad=Math.abs(inS/inN-outS/outN);
+  if(ad<6)return 0.12;
+  return Math.min(1,ad/35);
+}
+function scoreQuad(P,pts,gray,w,h,sym){
   const A=quadArea(P)/(w*h);
   let angS=0;
   for(let i=0;i<4;i++){
@@ -1093,7 +1125,7 @@ function scoreQuad(P,pts,gray,w,h){
   }
   angS/=4;
   const fill=fillRate(P,pts);
-  const ct=quadContrast(P,gray,w,h);
+  const ct=sym?quadContrastSym(P,gray,w,h):quadContrast(P,gray,w,h);
   if(ct<0)return 0;
   let areaS=1;
   if(A<0.15)areaS=A/0.15;
@@ -1385,19 +1417,238 @@ function cvDetectMask(gray,w,h,level){
   }
   return best?{found:true,quad:best.quad,score:best.score}:{found:false,score:0};
 }
-/* 总入口：分割法为主，Canny 为辅，按分数取优
-   fast=实时取景轮：分割已有可用结果时跳过 Canny（调用方隔帧放行，平均耗时近乎减半） */
-function cvDetectAll(gray,w,h,level,fast){
-  const P=precParams(level===undefined?1:level);
+/* ================================================================
+   v2.8 彩色纸张分割：非白色纸张（红头文件、粉选票、蓝封面）专用
+   背景 = 画面边界 5% 环的中位色；前景 = 种子点（默认画面中央，
+   用户点选时为点选处）周围取样块的中位色。
+   用「彩度（归一化 r,g）+ 亮度」最近邻分类生成掩码：纸张颜色与
+   背景有肉眼可辨的区分时即可分割，不再依赖「纸必须是白色」。
+   边界洪泛去外部 + 孔洞填充——纸面反光点、字迹全部并入纸张，
+   反光区域不再劫持识别框。连通块选取「包含种子点的优先」，
+   实现画面中央优先与点选区域优先。
+   ================================================================ */
+function cvMedian3(a){
+  if(!a.length)return 0;
+  a.sort(function(x,y){return x-y;});
+  return a[a.length>>1];
+}
+function cvDetectColor(rgba,gray,w,h,seed,level){
+  const N=w*h;
+  /* 距离度量：彩度欧氏距离×260 + 亮度差×0.62（彩度主导，亮度辅助） */
+  function distCR(cr1,cg1,L1,cr2,cg2,L2){
+    const dx=cr1-cr2,dy=cg1-cg2;
+    return Math.sqrt(dx*dx+dy*dy)*260+Math.abs(L1-L2)*0.62;
+  }
+  /* ---- 1. 背景色：画面边界 5% 环（桌面/衬布），每 2px 取样 ---- */
+  const mX=Math.max(2,Math.round(w*0.05)),mY=Math.max(2,Math.round(h*0.05));
+  const bR=[],bG=[],bB=[];
+  for(let y=0;y<h;y+=2){
+    const inTB=y<mY||y>=h-mY;
+    for(let x=0;x<w;x+=2){
+      if(!inTB&&x>=mX&&x<w-mX)continue;
+      const j=(y*w+x)*4;
+      bR.push(rgba[j]);bG.push(rgba[j+1]);bB.push(rgba[j+2]);
+    }
+  }
+  if(bR.length<24)return null;
+  /* ---- 2. 前景色：种子点（默认画面中央）周围 16% 取样块 ---- */
+  const sx=seed?Math.max(0,Math.min(1,seed.x))*w:w*0.5;
+  const sy=seed?Math.max(0,Math.min(1,seed.y))*h:h*0.5;
+  const hw=Math.max(4,Math.round(w*0.08)),hh=Math.max(4,Math.round(h*0.08));
+  const fR=[],fG=[],fB=[];
+  const fy0=Math.max(0,(sy-hh)|0),fy1=Math.min(h,sy+hh);
+  const fx0=Math.max(0,(sx-hw)|0),fx1=Math.min(w,sx+hw);
+  for(let y=fy0;y<fy1;y+=2){
+    for(let x=fx0;x<fx1;x+=2){
+      const j=(y*w+x)*4;
+      fR.push(rgba[j]);fG.push(rgba[j+1]);fB.push(rgba[j+2]);
+    }
+  }
+  if(fR.length<24)return null;
+  const mr=cvMedian3(bR),mg=cvMedian3(bG),mb=cvMedian3(bB);
+  const fr=cvMedian3(fR),fg2=cvMedian3(fG),fb=cvMedian3(fB);
+  const sB=mr+mg+mb+1,sF=fr+fg2+fb+1;
+  const bcr=mr/sB,bcg=mg/sB,bL=mr*0.299+mg*0.587+mb*0.114;
+  const fcr=fr/sF,fcg=fg2/sF,fL=fr*0.299+fg2*0.587+fb*0.114;
+  const sceneD=distCR(fcr,fcg,fL,bcr,bcg,bL);
+  if(sceneD<26)return null;              /* 种子处与背景无颜色区分 → 交给白纸分割 */
+  const bias=Math.max(8,sceneD*0.10);    /* 模糊地带划给背景 → 框更贴纸边不外扩 */
+  const cap=sceneD*1.6+60;               /* 与前景差异过大的远处杂色不认领 */
+  /* ---- 3. 最近邻分类：靠近前景色 → 候选纸张 ---- */
+  const mask=new Uint8Array(N);
+  for(let i=0,j=0;i<N;i++,j+=4){
+    const s=rgba[j]+rgba[j+1]+rgba[j+2]+1;
+    const cr=rgba[j]/s,cg=rgba[j+1]/s;
+    const dF=Math.sqrt((cr-fcr)*(cr-fcr)+(cg-fcg)*(cg-fcg))*260+Math.abs(gray[i]-fL)*0.62;
+    if(dF<cap){
+      const dB=Math.sqrt((cr-bcr)*(cr-bcr)+(cg-bcg)*(cg-bcg))*260+Math.abs(gray[i]-bL)*0.62;
+      if(dF+bias<dB)mask[i]=1;
+    }
+  }
+  /* ---- 4. 边界洪泛标「外部」，未标记的非纸张像素 = 纸内孔洞 → 填充
+         （反光点、印章、字迹全部并入，不再被误判为边界） ---- */
+  const vis=new Uint8Array(N),stk=new Int32Array(N);
+  let sp=0;
+  for(let x=0;x<w;x++){
+    const a=x,b=(h-1)*w+x;
+    if(!mask[a]&&!vis[a]){vis[a]=1;stk[sp++]=a;}
+    if(!mask[b]&&!vis[b]){vis[b]=1;stk[sp++]=b;}
+  }
+  for(let y=0;y<h;y++){
+    const c=y*w,d=c+w-1;
+    if(!mask[c]&&!vis[c]){vis[c]=1;stk[sp++]=c;}
+    if(!mask[d]&&!vis[d]){vis[d]=1;stk[sp++]=d;}
+  }
+  while(sp){
+    const p=stk[--sp],py=(p/w)|0,px2=p-py*w;
+    if(px2>0&&!mask[p-1]&&!vis[p-1]){vis[p-1]=1;stk[sp++]=p-1;}
+    if(px2<w-1&&!mask[p+1]&&!vis[p+1]){vis[p+1]=1;stk[sp++]=p+1;}
+    if(py>0&&!mask[p-w]&&!vis[p-w]){vis[p-w]=1;stk[sp++]=p-w;}
+    if(py<h-1&&!mask[p+w]&&!vis[p+w]){vis[p+w]=1;stk[sp++]=p+w;}
+  }
+  for(let q=0;q<N;q++){if(!mask[q]&&!vis[q])mask[q]=1;}
+  /* ---- 4.5 闭运算（膨胀2轮+腐蚀2轮）：桥接 2px 级细切痕——
+         压在纸上的细线、绳子、刮痕不再把纸张掩码切成碎块 ---- */
+  const tmp=new Uint8Array(N);
+  for(let it=0;it<2;it++){
+    tmp.set(mask);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=y*w+x;
+      if(tmp[i])continue;
+      if((x>0&&tmp[i-1])||(x<w-1&&tmp[i+1])||(y>0&&tmp[i-w])||(y<h-1&&tmp[i+w]))mask[i]=1;
+    }
+  }
+  for(let it=0;it<2;it++){
+    tmp.set(mask);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const i=y*w+x;
+      if(!tmp[i])continue;
+      if((x>0&&!tmp[i-1])||(x<w-1&&!tmp[i+1])||(y>0&&!tmp[i-w])||(y<h-1&&!tmp[i+w]))mask[i]=0;
+    }
+  }
+  /* ---- 5. 连通块标号：包含种子点的块优先（中央/点选优先），最大块兜底 ---- */
+  const lbl=new Int32Array(N);
+  const sizes=[0];
+  let cur=0;
+  for(let s0=0;s0<N;s0++){
+    if(mask[s0]&&!lbl[s0]){
+      cur++;
+      let sp2=0;stk[sp2++]=s0;lbl[s0]=cur;
+      let cnt=0;
+      while(sp2){
+        const u=stk[--sp2];cnt++;
+        const uy=(u/w)|0,ux=u-uy*w;
+        if(ux>0&&mask[u-1]&&!lbl[u-1]){lbl[u-1]=cur;stk[sp2++]=u-1;}
+        if(ux<w-1&&mask[u+1]&&!lbl[u+1]){lbl[u+1]=cur;stk[sp2++]=u+1;}
+        if(uy>0&&mask[u-w]&&!lbl[u-w]){lbl[u-w]=cur;stk[sp2++]=u-w;}
+        if(uy<h-1&&mask[u+w]&&!lbl[u+w]){lbl[u+w]=cur;stk[sp2++]=u+w;}
+      }
+      sizes[cur]=cnt;
+    }
+  }
+  const seedIdx=Math.min(N-1,Math.round(sy)*w+Math.round(sx));
+  const seedLbl=lbl[seedIdx]||0;
+  let bestLbl=0,bestN=0;
+  for(let l=1;l<sizes.length;l++){if(sizes[l]>bestN){bestN=sizes[l];bestLbl=l;}}
+  let chosen=0;
+  if(seedLbl&&sizes[seedLbl]>=N*(seed?0.02:0.05))chosen=seedLbl;
+  if(!chosen&&bestN>=N*0.06)chosen=bestLbl;
+  if(!chosen)return null;
+  /* ---- 6. 包围盒 + 边界点 + 打分采样，单趟完成 ---- */
+  const colTop=new Int32Array(w),colBot=new Int32Array(w);
+  const rowL=new Int32Array(h),rowR=new Int32Array(h);
+  const sampX=new Int32Array(640),sampY=new Int32Array(640);
+  colTop.fill(-1);colBot.fill(-1);rowL.fill(-1);rowR.fill(-1);
+  let x0=w,y0=h,x1=-1,y1=-1,seen=0,sn=0;
+  const cn=sizes[chosen];
+  const sampStep=Math.max(1,(cn/600)|0);
+  for(let yy=0;yy<h;yy++){
+    const row=yy*w;
+    for(let xx=0;xx<w;xx++){
+      const j=row+xx;
+      if(lbl[j]!==chosen)continue;
+      if(xx<x0)x0=xx;if(xx>x1)x1=xx;
+      if(yy<y0)y0=yy;if(yy>y1)y1=yy;
+      if(colTop[xx]<0)colTop[xx]=yy;
+      colBot[xx]=yy;
+      if(rowL[yy]<0)rowL[yy]=xx;
+      rowR[yy]=xx;
+      if((seen++%sampStep)===0&&sn<640){sampX[sn]=xx;sampY[sn]=yy;sn++;}
+    }
+  }
+  const bw=x1-x0+1,bh=y1-y0+1;
+  if(bw>0.965*w&&bh>0.965*h)return null;   /* 占满画面，无裁剪意义 */
+  if(cn/(bw*bh)<0.42)return null;
+  const bpts=[];
+  const stp=w>260?2:1;
+  for(let cx2=0;cx2<w;cx2+=stp){
+    if(colTop[cx2]>=0){bpts.push({x:cx2,y:colTop[cx2]});bpts.push({x:cx2,y:colBot[cx2]});}
+  }
+  for(let ry=0;ry<h;ry+=stp){
+    if(rowL[ry]>=0){bpts.push({x:rowL[ry],y:ry});bpts.push({x:rowR[ry],y:ry});}
+  }
+  const sample=[];
+  for(let si=0;si<sn;si++)sample.push({x:sampX[si],y:sampY[si]});
+  /* ---- 7. 拟合：凸包→DP 四边形→角点吸附；退回旋转矩形→包围盒 ----
+         打分用对称对比度：深色纸配浅桌、浅色纸配深桌都算有效对比 */
+  let quad=null;
+  const hull=cvHull(bpts);
+  if(hull&&hull.length>=4){
+    const peri=polyPerimeter(hull);
+    let poly=cvDPClosed(hull,Math.max(3,peri*0.02));
+    if(poly.length>4)poly=cvReduceTo4(poly);
+    if(poly&&poly.length===4&&validQuadMask(poly,w,h)){
+      const sc0=scoreQuad(poly,sample,gray,w,h,true);
+      const snap=snapQuadToHull(poly,hull);
+      const sc1=(snap===poly)?-1:scoreQuad(snap,sample,gray,w,h,true);
+      quad=(sc1>sc0&&validQuadMask(snap,w,h))?snap:poly;
+    }
+  }
+  if(!quad){
+    const mrq=hull&&hull.length>=4?minAreaRect(hull):null;
+    if(mrq&&validQuadMask(mrq,w,h))quad=mrq;
+  }
+  if(!quad)quad=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
+  const sc=scoreQuad(quad,sample,gray,w,h,true);
+  if(sc<=0)return null;
+  /* 前景是否为明显彩色（红头文件/彩封/选票=是；白纸=否）。
+     彩色场景按需求优先识别画面中央物品，编排层据此给彩色结果让路 */
+  const chromaMag=Math.sqrt((fcr-0.3333)*(fcr-0.3333)+(fcg-0.3333)*(fcg-0.3333));
+  /* 分类边界略偏紧，外扩幅度取白纸路径 2 倍，保证纸边不裁掉 */
+  return{found:true,quad:padQuad(quad,Math.max(0.008,precParams(level===undefined?1:level).pad*2),w,h),score:sc,chromatic:chromaMag>=0.025};
+}
+/* 总入口（v2.8）：入参改为整帧 RGBA（彩色路径需要颜色信息），灰度在内部派生
+   编排优先级：
+   ① 彩色分割先跑：用户点选（seed）或前景明显彩色（红头文件/彩封/选票等
+      非白纸场景）且得分可用 → 直接采用（中央物品优先，且先于白纸分割的
+      高分早退判断——反光假框往往带高分）；
+   ② 白色分割为主、Canny 为辅按分数竞争（v2.7 白纸行为不变）；
+   ③ 彩色分割结果接近白纸分割分数时亦可采用；
+   fast=实时取景轮：已有可用结果时跳过 Canny（调用方隔帧放行，平均耗时近乎减半） */
+function cvDetectAll(rgba,w,h,level,fast,seed){
+  const lv=level===undefined?1:level;
+  const gray=cvGray(rgba,w,h);
+  const P=precParams(lv);
+  let colorR=null;
+  try{colorR=cvDetectColor(rgba,gray,w,h,seed,lv);}catch(e){colorR=null;}
+  if(colorR&&colorR.found&&colorR.quad&&colorR.score>=0.40){
+    /* 点选=用户指定意图；前景明显彩色=非白纸场景，按中央物品优先原则直接采用，
+       且必须先于白纸分割的高分早退判断（反光假框常带高分） */
+    if(seed||colorR.chromatic)return colorR;
+  }
   let best=null;
   try{
-    const m=cvDetectMask(gray,w,h,level);
+    const m=cvDetectMask(gray,w,h,lv);
     if(m&&m.found&&m.quad){
       best=m;
-      /* 提速：分割法已达当前档位置信线时不再跑 Canny 全流程（模糊+Sobel+NMS+滞后阈值+连通块） */
-      if(m.score>=P.skipCanny)return best;
+      /* 提速：分割法已达当前档位置信线且无点选时不再跑彩色/Canny 全流程 */
+      if(m.score>=P.skipCanny&&!seed)return best;
     }
   }catch(e){}
+  if(colorR&&colorR.found&&colorR.quad&&colorR.score>=0.40){
+    /* 前景接近白色=普通白纸场景：与白纸分割比分接近才采用（保持 v2.7 行为） */
+    if(!best||colorR.score>=best.score-0.05)return colorR;
+  }
   if(!(fast&&best)){
     try{
       const c=cvDetect(gray,w,h);
@@ -1412,9 +1663,9 @@ function cvDetectAll(gray,w,h,level,fast){
 let cvWorker=null,wSeq=0;
 const wPending=new Map();
 try{
-  const fns=[precParams,cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,validQuadMask,fillRate,quadContrast,scoreQuad,evalComp,padQuad,snapQuadToHull,minAreaRect,cvDetect,cvDetectMask,cvDetectAll];
+  const fns=[precParams,cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,validQuadMask,fillRate,quadContrast,quadContrastSym,scoreQuad,evalComp,padQuad,snapQuadToHull,minAreaRect,cvDetect,cvDetectMask,cvMedian3,cvDetectColor,cvDetectAll];
   const src=fns.map(f=>f.toString()).join('\n')+
-    '\nonmessage=function(e){var d=e.data;try{var r=cvDetectAll(new Uint8Array(d.buf),d.w,d.h,d.level,d.fast);postMessage({id:d.id,found:r.found,quad:r.quad||null,score:r.score||0});}catch(err){postMessage({id:d.id,found:false,score:0});}};';
+    '\nonmessage=function(e){var d=e.data;try{var r=cvDetectAll(new Uint8Array(d.buf),d.w,d.h,d.level,d.fast,d.seed);postMessage({id:d.id,found:r.found,quad:r.quad||null,score:r.score||0});}catch(err){postMessage({id:d.id,found:false,score:0});}};';
   cvWorker=new Worker(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
   cvWorker.onmessage=function(e){
     const p=wPending.get(e.data.id);
@@ -1427,18 +1678,18 @@ try{
     if(st)st.textContent='SEG·INLINE';
   };
 }catch(e){cvWorker=null;}
-function cvRun(gray,w,h,level,fast){
+function cvRun(rgba,w,h,level,fast,seed){
   if(cvWorker){
     return new Promise(res=>{
       const id=++wSeq;
       wPending.set(id,res);
-      try{cvWorker.postMessage({buf:gray.buffer,w:w,h:h,id:id,level:level===undefined?1:level,fast:!!fast},[gray.buffer]);}
+      try{cvWorker.postMessage({buf:rgba.buffer,w:w,h:h,id:id,level:level===undefined?1:level,fast:!!fast,seed:seed||null},[rgba.buffer]);}
       catch(e){wPending.delete(id);res(null);}
       setTimeout(()=>{if(wPending.has(id)){wPending.delete(id);res(null);}},900);
     });
   }
   try{
-    const r=cvDetectAll(gray,w,h,level,fast);
+    const r=cvDetectAll(rgba,w,h,level,fast,seed);
     return Promise.resolve({id:0,found:r.found,quad:r.quad||null,score:r.score||0});
   }catch(e){return Promise.resolve(null);}
 }
@@ -1651,7 +1902,7 @@ function detectContentQuad(cv){
   ];
 }
 function detectAutoQuad(cv){return brightPaperQuad(cv)||detectContentQuad(cv);}
-async function detectQuadSmart(srcCanvas,minScore){
+async function detectQuadSmart(srcCanvas,minScore,seed){
   try{
     const cfg=precCfg();
     const s=Math.min(1,(cfg.refineSide||440)/Math.max(srcCanvas.width,srcCanvas.height));
@@ -1660,8 +1911,7 @@ async function detectQuadSmart(srcCanvas,minScore){
     const g=t.getContext('2d',{willReadFrequently:true});
     g.drawImage(srcCanvas,0,0,w,h);
     const img=g.getImageData(0,0,w,h);
-    const gray=cvGray(img.data,w,h);
-    const r=await cvRun(gray,w,h,precNum());
+    const r=await cvRun(img.data,w,h,precNum(),false,seed);
     if(r&&r.found&&r.quad&&r.score>=(minScore!==undefined?minScore:cfg.minScore))return r.quad;
   }catch(e){}
   return null;
@@ -2007,7 +2257,7 @@ function setBusyTxt(t){
 function renderMeta(){
   if(current>=pages.length)current=Math.max(0,pages.length-1);
   $('#docNameTxt').textContent=docName;
-  $('#esDesc').innerHTML=`当前文档：「${esc(docName)}」<br>白色区域分割引擎实时锁定纸张，<br>快门只保留白纸区域内容。`;
+  $('#esDesc').innerHTML=`当前文档：「${esc(docName)}」<br>智能引擎实时锁定纸张（白纸/红头文件/彩封均可），<br>点按画面可指定识别位置。`;
   $('#camDocTip').textContent=`正在拍摄：「${docName}」`;
   const n=pages.length;
   $('#docSub').textContent=`${String(n).padStart(2,'0')} PAGES · ${n?fmtMB(totalSize()):'0.0 MB'}`;
@@ -2464,7 +2714,7 @@ async function getStream(){
 
 const Edge={active:false,timer:null,manual:false,quad:null,target:null,disp:null,
             confident:false,lost:0,busy:false,small:null,smallCtx:null,
-            cand:null,candN:0,frameNo:0};
+            cand:null,candN:0,frameNo:0,focus:null};
 const edgeSvg=$('#edgeSvg'),edgePoly=$('#edgePoly'),edgeHint=$('#edgeHint'),edgeWrap=$('#edgeWrap'),edgeStat=$('#edgeStat');
 function edgeInitSmall(){
   if(!Edge.small){
@@ -2507,11 +2757,11 @@ async function edgeLoop(){
     Edge.small.width=W;Edge.small.height=H;
     Edge.smallCtx.drawImage(v,cr.sx,cr.sy,cr.sw,cr.sh,0,0,W,H);
     const img=Edge.smallCtx.getImageData(0,0,W,H);
-    const gray=cvGray(img.data,W,H);
-    /* 提速：找到纸张后 Canny 隔帧才跑一次（fast 轮只做分割），平均耗时近乎减半；
+    /* v2.8：整帧 RGBA 直传引擎（Worker 内派生灰度）——彩色纸张与点选区域需要颜色信息；
+       提速：找到纸张后 Canny 隔帧才跑一次（fast 轮只做分割），平均耗时近乎减半；
        尚未找到纸张时每轮全流水，保证首锁速度 */
     const fast=(Edge.quad||Edge.confident)?((Edge.frameNo++&1)===0):false;
-    const r=await cvRun(gray,W,H,precNum(),fast);
+    const r=await cvRun(img.data,W,H,precNum(),fast,Edge.focus);
     if(!Edge.active||Edge.manual)return;
     applyDetect(r);
   }catch(e){}finally{Edge.busy=false;}
@@ -2572,15 +2822,15 @@ function edgeHintText(){
   if(Edge.manual)return '手动模式 · 左下「框选·自动」可恢复';
   if(Edge.quad&&Edge.confident)return '';
   if(Edge.quad)return '边缘待确认 · 可拖动角点修正';
-  if(Edge.lost>8)return '未找到白纸区域 · 稍微拉远，让纸张四周露出桌面';
-  return '正在识别白纸区域…';
+  if(Edge.lost>8)return Edge.focus?'点选处未识别到纸张 · 换个位置点选或稍微拉远':'未找到纸张 · 稍微拉远，让纸张四周露出桌面';
+  return Edge.focus?'正在按点选位置识别…':'正在识别纸张区域…';
 }
 function hideEdge(){edgeWrap.style.display='none';edgeHint.style.display='none';}
 function edgeStart(){
   if(Edge.active)return;
   Edge.active=true;Edge.lost=0;Edge.manual=false;
   Edge.quad=null;Edge.target=null;Edge.disp=null;Edge.confident=false;
-  Edge.cand=null;Edge.candN=0;Edge.frameNo=0;
+  Edge.cand=null;Edge.candN=0;Edge.frameNo=0;Edge.focus=null;
   edgeStat.style.display='block';
   edgeStat.textContent=cvWorker?'SEG·WORKER':'SEG·INLINE';
   edgeLoop();
@@ -2617,11 +2867,35 @@ function syncAutoChip(){
 }
 $('#autoChip').onclick=()=>{
   autoCropOn=!autoCropOn;saveAutoCrop();syncAutoChip();
-  if(!autoCropOn){Edge.quad=null;Edge.manual=false;hideEdge();}
-  else{Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;}
+  if(!autoCropOn){Edge.quad=null;Edge.manual=false;Edge.focus=null;hideEdge();}
+  else{Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;Edge.focus=null;}
   vibrate(8);
-  toast(autoCropOn?'自动框选已开启：绿框锁定白纸，快门只拍框内':'自动框选已关闭：快门将拍摄全图');
+  toast(autoCropOn?'自动框选已开启：绿框锁定纸张，点按画面可指定识别位置':'自动框选已关闭：快门将拍摄全图');
 };
+
+/* ---- v2.8 点选识别 ----
+   点画面任意处：彩色分割以该点为种子，优先框出点选处的物品——
+   反光、桌面纹理不再劫持绿框；再点其他位置随时切换。
+   点左下「框选·自动」可恢复画面中央自动识别 */
+$('#camModal').addEventListener('click',e=>{
+  if(e.target.closest('button'))return;
+  if(e.target.closest('.cam-top')||e.target.closest('.cam-bottom'))return;
+  if(!autoCropOn)return;
+  const v=$('#camVideo');
+  if(!v.videoWidth)return;
+  const r=v.getBoundingClientRect();
+  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;
+  Edge.focus={x:clamp01((e.clientX-r.left)/r.width),y:clamp01((e.clientY-r.top)/r.height)};
+  Edge.manual=false;Edge.lost=0;Edge.cand=null;Edge.candN=0;
+  const fx=document.createElement('div');
+  fx.className='tap-ripple';
+  fx.style.left=(e.clientX-r.left)+'px';
+  fx.style.top=(e.clientY-r.top)+'px';
+  $('#camModal').appendChild(fx);
+  setTimeout(()=>fx.remove(),700);
+  vibrate(6);
+  drawEdge(r);
+});
 
 
 async function openCamera(){
@@ -2698,7 +2972,7 @@ async function shoot(){
       let refined=null;
       const pc=precCfg();
       try{
-        refined=await Promise.race([detectQuadSmart(c),new Promise(res=>setTimeout(()=>res(null),pc.padWait))]);
+        refined=await Promise.race([detectQuadSmart(c,undefined,Edge.focus),new Promise(res=>setTimeout(()=>res(null),pc.padWait))]);
       }catch(e){}
       if(refined)quad=refined;
       else if(Edge.quad&&!isFullQuad(Edge.quad))quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
@@ -2950,6 +3224,7 @@ window.__buildReport=function(){
 };
 function renderDiag(){
   refreshCamPerm();
+  $('#dgVer').textContent='v'+window.__VER;
   const rows=computeDiag();
   const box=$('#dgList');box.innerHTML='';
   rows.forEach(r=>{
