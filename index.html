@@ -140,6 +140,16 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 #diagModal .card-hd{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:10px;margin:0 -20px 14px;padding:16px 20px 12px;background:var(--paper);border-radius:18px 18px 0 0;box-shadow:0 8px 16px -12px rgba(0,0,0,.3)}
 #diagModal .card-hd .card-x{position:static;flex:none}
 #diagModal .card-hd .card-title{margin:0;flex:1;min-width:0}
+/* 诊断弹窗：使用帮助 / 更新日志 页签 */
+.dg-tabs{display:flex;gap:6px;margin:0 0 12px;border-bottom:1px solid var(--line)}
+.dg-tabs button{flex:1;padding:9px 4px;font-size:13.5px;font-weight:600;color:var(--ink2);border-bottom:2px solid transparent;margin-bottom:-1px}
+.dg-tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.cl-tip{font-size:11.5px;color:var(--ink2);margin:0 0 12px}
+.cl-item{margin-bottom:16px}
+.cl-ver{font-weight:700;font-size:14px;margin-bottom:4px}
+.cl-ver small{color:var(--ink2);font-weight:400;margin-left:6px;font-size:11px}
+.cl-item ul{margin:0;padding-left:18px}
+.cl-item li{font-size:12.5px;color:var(--ink2);line-height:1.85}
 .card-x{position:absolute;top:10px;right:10px}
 .f-label{display:block;font-size:12px;color:var(--ink2);margin:14px 0 7px;letter-spacing:1px}
 .f-input{width:100%;border:1.5px solid var(--line);background:#FBF9F3;border-radius:10px;padding:12px 13px;font-size:15px;font-family:inherit;color:var(--ink);outline:none}
@@ -697,6 +707,12 @@ document.getElementById('fatalCopy').onclick=async function(){
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
+    <div class="dg-tabs">
+      <button id="dgTabHelp" class="on" type="button">使用帮助</button>
+      <button id="dgTabLog" type="button">更新日志</button>
+    </div>
+
+    <div id="dgPageHelp">
     <label class="f-label" style="margin-top:0">环境自检</label>
     <div id="dgList"></div>
 
@@ -720,6 +736,12 @@ document.getElementById('fatalCopy').onclick=async function(){
       <p><b>电脑上怎么用？</b>在电脑浏览器打开本页即自动切换电脑模式：拍照用电脑摄像头；「相册」可选文件夹 / ZIP 压缩包 / 多选图片批量导入，文件夹与 ZIP 名称自动作为文档名，可选保留原图片名。</p>
       <p><b>微信里怎么分享？</b>微信内置浏览器调不起分享面板，点分享会弹出小窗预览：长按图片即可保存或转发；要发 PDF/ZIP，先复制链接到系统浏览器打开再导出。</p>
       <p><b>怎么发给微信？</b>导出 → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
+    </div>
+    </div>
+
+    <div id="dgPageLog" style="display:none">
+      <p class="cl-tip">每次更新功能与修复都会记录在这里，最新在最上面。</p>
+      <div id="dgChangeLog"></div>
     </div>
   </div>
 </div>
@@ -2896,7 +2918,7 @@ function applyDetect(r){
   if(box.width)drawEdge(box);
 }
 function drawEdge(box){
-  const on=autoCropOn;
+  const on=autoCropOn||(Edge.manual&&!!Edge.quad);
   edgeWrap.style.display=on?'block':'none';
   if(!on)return;
   const q=Edge.quad||FULLQ();
@@ -2914,8 +2936,13 @@ function drawEdge(box){
   if(hint)edgeHint.textContent=hint;
 }
 function edgeHintText(){
-  if(!autoCropOn)return '';
-  if(Edge.manual)return '手动模式 · 左下「框选·自动」可恢复';
+  if(!autoCropOn){
+    if(Edge.manual&&Edge.quad&&!isFullQuad(Edge.quad))return '手动框选 · 快门截取框内区域';
+    if(Edge.manual&&Edge.quad)return '拖动角点自选裁剪区 · 不调整则拍摄全图';
+    return '';
+  }
+  if(Edge.manual)return '手动模式 · 点左下「框选·手动」可恢复自动';
+  if(Edge.focus&&!Edge.quad)return '正在按点选位置识别…';
   if(Edge.quad&&Edge.confident)return '';
   if(Edge.quad)return '边缘待确认 · 可拖动角点修正';
   if(Edge.lost>8)return Edge.focus?'点选处未识别到纸张 · 换个位置点选或稍微拉远':'未找到纸张 · 稍微拉远，让纸张四周露出桌面';
@@ -2941,7 +2968,12 @@ document.querySelectorAll('.edge-h').forEach(h=>{
   h.addEventListener('pointerdown',e=>{
     e.preventDefault();
     h.setPointerCapture(e.pointerId);
+    /* 拖动角点=用户对自动结果不满意：转入手动模式，暂停自动识别，
+       绿框保留在当前位置供调整；按钮显示「框选·手动」，点它可恢复自动 */
+    const wasManual=Edge.manual;
     Edge.manual=true;
+    Edge.focus=null;
+    if(!wasManual){syncAutoChip();vibrate(8);}
     if(!Edge.quad)Edge.quad=FULLQ();
     const i=+h.dataset.i;
     const move=ev=>{
@@ -2958,15 +2990,34 @@ document.querySelectorAll('.edge-h').forEach(h=>{
 });
 function syncAutoChip(){
   const b=$('#autoChip');
-  b.textContent=autoCropOn?'框选·自动':'框选·关';
+  b.textContent=!autoCropOn?'框选·关':(Edge.manual?'框选·手动':'框选·自动');
   b.classList.toggle('off',!autoCropOn);
 }
 $('#autoChip').onclick=()=>{
-  autoCropOn=!autoCropOn;saveAutoCrop();syncAutoChip();
-  if(!autoCropOn){Edge.quad=null;Edge.manual=false;Edge.focus=null;hideEdge();}
-  else{Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;Edge.focus=null;}
   vibrate(8);
-  toast(autoCropOn?'自动框选已开启：绿框锁定纸张，点按画面可指定识别位置':'自动框选已关闭：快门将拍摄全图');
+  if(autoCropOn&&Edge.manual){
+    /* 手动 → 恢复自动 */
+    Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;Edge.focus=null;Edge.lost=0;Edge.cand=null;Edge.candN=0;
+    clearTimeout(Edge.timer);Edge.timer=setTimeout(edgeLoop,30);
+    syncAutoChip();
+    toast('已恢复自动框选');
+    return;
+  }
+  autoCropOn=!autoCropOn;saveAutoCrop();
+  if(autoCropOn){
+    Edge.manual=false;Edge.quad=null;Edge.disp=null;Edge.target=null;Edge.focus=null;Edge.lost=0;
+    toast('自动框选已开启：点按画面可指定识别位置');
+  }else{
+    /* 自动 → 关：绿框不清除，保留为可调手动框；不动它=拍全图，拖动后=按框截取 */
+    Edge.manual=true;Edge.focus=null;
+    if(!Edge.quad||isFullQuad(Edge.quad))Edge.quad=FULLQ();
+    Edge.disp=Edge.quad.slice();Edge.target=Edge.quad.slice();
+    toast('自动框选已关闭：拖动角点自选裁剪区，不调整则拍摄全图');
+  }
+  syncAutoChip();
+  const v=$('#camVideo');
+  if(autoCropOn||Edge.manual){if(v.videoWidth)drawEdge(v.getBoundingClientRect());}
+  else hideEdge();
 };
 
 /* ---- v2.8 点选识别 ----
@@ -3098,6 +3149,11 @@ async function shoot(){
   if(autoCropOn){
     if(Edge.manual&&Edge.quad&&!isFullQuad(Edge.quad)){
       quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
+    }else if(Edge.quad&&Edge.confident&&!isFullQuad(Edge.quad)){
+      /* 所见即所得：绿框已高置信锁定，直接按绿框截取。
+         不再对静帧重新识别——重识别结果与用户看到的绿框不一致时，
+         预览图和扫描图就会偏离绿框（v2.8 之前预览错图的根源） */
+      quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
     }else{
       let refined=null;
       const pc=precCfg();
@@ -3107,6 +3163,9 @@ async function shoot(){
       if(refined)quad=refined;
       else if(Edge.quad&&!isFullQuad(Edge.quad))quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
     }
+  }else if(Edge.manual&&Edge.quad&&!isFullQuad(Edge.quad)){
+    /* 关闭自动框选后手动调过绿框：按手框截取；未动（全幅）则拍全图 */
+    quad=Edge.quad.map(p=>({x:p.x,y:p.y}));
   }
   const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
   if(!blob){toast('拍摄失败，请重试','warn');return;}
@@ -3352,6 +3411,36 @@ window.__buildReport=function(){
     return L.join('\n');
   }catch(e){return window.__buildReportFallback();}
 };
+/* 更新日志：每次更新在最上面加一条 {ver,date,items[]}，
+   「诊断与帮助 → 更新日志」分页自动展示，无需改其他代码 */
+const CHANGELOG=[
+  {ver:'2.8',date:'2026-09-19',items:[
+    '新增彩色纸张识别：红头文件、粉选票、蓝封面、深色封套等非白色物品都能自动框选，纸面反光不再劫持绿框',
+    '新增点选识别：点按画面任意位置，优先框选该处物品，再点其他位置随时切换',
+    '新增手动框选：拖动角点即暂停自动识别、转入手动微调；关闭自动框选后也可拖角点自选裁剪区（不动则拍全图）',
+    '修复拍摄预览图与绿框内容不一致的问题：预览与扫描严格按绿框截取，所见即所得',
+    '优化点选响应：点选后绿框立即切换到点选目标'
+  ]},
+  {ver:'2.7',date:'2026-09-12',items:[
+    '识别引擎提速：全流程类型化数组单趟扫描，实时取景隔帧竞争，框更贴纸边、绿框更稳'
+  ]}
+];
+let changeLogRendered=false;
+function renderChangeLog(){
+  const box=$('#dgChangeLog');
+  box.innerHTML=CHANGELOG.map(e=>
+    '<div class="cl-item"><div class="cl-ver">v'+esc(e.ver)+'<small>'+esc(e.date)+'</small></div><ul>'+
+    e.items.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul></div>'
+  ).join('');
+  changeLogRendered=true;
+}
+function dgSwitchTab(log){
+  $('#dgTabHelp').classList.toggle('on',!log);
+  $('#dgTabLog').classList.toggle('on',!!log);
+  $('#dgPageHelp').style.display=log?'none':'block';
+  $('#dgPageLog').style.display=log?'block':'none';
+  if(log&&!changeLogRendered)renderChangeLog();
+}
 function renderDiag(){
   refreshCamPerm();
   $('#dgVer').textContent='v'+window.__VER;
@@ -3367,8 +3456,10 @@ function renderDiag(){
 }
 
 /* ================= 事件绑定 ================= */
-$('#btnHelp').onclick=()=>{renderDiag();openM($('#diagModal'));};
+$('#btnHelp').onclick=()=>{dgSwitchTab(false);renderDiag();openM($('#diagModal'));};
 $('#dgClose').onclick=()=>closeM($('#diagModal'));
+$('#dgTabHelp').onclick=()=>dgSwitchTab(false);
+$('#dgTabLog').onclick=()=>dgSwitchTab(true);
 $('#dgPick').onclick=()=>$('#filePick').click();
 $('#dgCopy').onclick=async()=>{
   renderDiag();
