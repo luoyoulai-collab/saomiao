@@ -178,13 +178,14 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 .cam-grid{position:absolute;inset:0;pointer-events:none;z-index:2}
 .cam-grid::before{content:'';position:absolute;left:0;right:0;top:33.3%;height:1px;background:rgba(255,255,255,.16);box-shadow:0 33.3vh 0 rgba(255,255,255,.16)}
 .cam-grid::after{content:'';position:absolute;top:0;bottom:0;left:33.3%;width:1px;background:rgba(255,255,255,.16);box-shadow:33.3vw 0 0 rgba(255,255,255,.16)}
-#edgeWrap{position:absolute;inset:0;z-index:3;pointer-events:none}
+#edgeWrap{position:absolute;inset:0;pointer-events:none}
 #edgeSvg{position:absolute;inset:0;width:100%;height:100%}
 #edgePoly{fill:rgba(62,213,152,.07);stroke:#3ED598;stroke-width:2.5;filter:drop-shadow(0 0 5px rgba(62,213,152,.55))}
 #edgePoly.unsure{stroke-dasharray:8 7;fill:rgba(62,213,152,.03)}
 .edge-h{position:absolute;width:32px;height:32px;border-radius:50%;transform:translate(-50%,-50%);
   border:2.5px solid var(--accent-bright);background:rgba(10,20,14,.5);
-  box-shadow:0 2px 8px rgba(0,0,0,.5);pointer-events:auto;touch-action:none;display:none}
+  box-shadow:0 2px 8px rgba(0,0,0,.5);pointer-events:auto;touch-action:none;display:none;
+  z-index:7}
 .edge-h::after{content:'';position:absolute;inset:9px;border-radius:50%;background:var(--accent-bright)}
 #edgeHint{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(120px + env(safe-area-inset-bottom));
   z-index:4;background:rgba(10,14,11,.66);color:#CFE8DB;font-size:11px;padding:5px 12px;border-radius:99px;
@@ -192,10 +193,12 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 #edgeStat{position:absolute;right:12px;bottom:calc(120px + env(safe-area-inset-bottom));z-index:4;
   font-family:'Space Grotesk',monospace;font-size:9px;letter-spacing:.1em;color:rgba(62,213,152,.75);
   background:rgba(10,14,11,.5);padding:3px 8px;border-radius:99px;display:none}
-.cam-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:14px 14px;z-index:5}
+.cam-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:14px 14px;z-index:5;pointer-events:none}
+.cam-top button{pointer-events:auto}
 .cam-tip{flex:1;text-align:center;color:rgba(255,255,255,.75);font-size:12px;letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.chip{background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:6px 11px;border-radius:99px;font-family:'Space Grotesk',monospace;letter-spacing:.08em;white-space:nowrap;flex:none}
-.cam-bottom{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:flex-end;justify-content:space-between;padding:22px 26px calc(26px + env(safe-area-inset-bottom));z-index:5}
+.chip{background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:6px 11px;border-radius:99px;font-family:'Space Grotesk',monospace;letter-spacing:.08em;white-space:nowrap;flex:none;pointer-events:none}
+.cam-bottom{position:absolute;bottom:0;left:0;right:0;display:flex;align-items:flex-end;justify-content:space-between;padding:22px 26px calc(26px + env(safe-area-inset-bottom));z-index:5;pointer-events:none}
+.cam-bottom button,.cam-bottom #lastShot{pointer-events:auto}
 #shutter{width:74px;height:74px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.22);position:relative}
 #shutter::after{content:'';position:absolute;inset:7px;border-radius:50%;background:#fff;transition:transform .1s}
 #shutter:active::after{transform:scale(.82)}
