@@ -709,7 +709,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 
     <label class="f-label">常见问题</label>
     <div class="help-list">
-      <p><b>识别引擎是什么？</b>v2.8 采用双通道分割引擎：白色纸张沿用「白色区域分割」（按阈值选亮区 → 填充字迹孔洞 → 最大白色连通块 → 凸包拟合四边形，角点吸附纸角）；遇到红头文件、粉选票、蓝封面等彩色纸张，自动切换「彩色分割」——以画面中央为基准取纸张主色、以画面边界取背景色，按颜色差异把纸张从桌面里分出来，纸面反光不再劫持识别框。两种结果与 Canny 边缘法按分数竞争取优，纸张出框、占满画面也能识别。</p>
+      <p><b>识别引擎是什么？</b>v2.8 采用双通道分割引擎：白色纸张沿用「白色区域分割」（按阈值选亮区 → 填充字迹孔洞 → 最大白色连通块 → 凸包拟合四边形，角点吸附纸角）；遇到彩色封面、红头文件、深色封套等非白色物品，自动切换「种子生长分割」——以画面中央（或点选处）为种子，按自适应颜色容差生长出物品区域，遇强边缘即止，白色桌面与衬纸不会被误认，反光也无法劫持识别框。两种结果与 Canny 边缘法竞争取优，纸张出框、占满画面也能识别。</p>
       <p><b>彩色纸张框不准怎么办？</b>直接点按画面中要拍的纸张，识别会立刻以点选位置为准重新框选；再点其他位置可随时切换。仍不行就稍微拉远手机让纸边露出桌面，或拖动四个角点手动微调。</p>
       <p><b>框选精度是多少？</b>固定为高精度自动识别：框紧贴纸边、容差低，追求准确框选。若个别纸张边缘被裁掉，可稍拉远手机让纸边露出来，或拖动角点手动微调。</p>
       <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可点按纸张位置指定识别，或拖动四个角点手动框选。</p>
@@ -1418,14 +1418,16 @@ function cvDetectMask(gray,w,h,level){
   return best?{found:true,quad:best.quad,score:best.score}:{found:false,score:0};
 }
 /* ================================================================
-   v2.8 彩色纸张分割：非白色纸张（红头文件、粉选票、蓝封面）专用
-   背景 = 画面边界 5% 环的中位色；前景 = 种子点（默认画面中央，
-   用户点选时为点选处）周围取样块的中位色。
-   用「彩度（归一化 r,g）+ 亮度」最近邻分类生成掩码：纸张颜色与
-   背景有肉眼可辨的区分时即可分割，不再依赖「纸必须是白色」。
-   边界洪泛去外部 + 孔洞填充——纸面反光点、字迹全部并入纸张，
-   反光区域不再劫持识别框。连通块选取「包含种子点的优先」，
-   实现画面中央优先与点选区域优先。
+   v2.8 彩色纸张分割：非白色纸张（红头文件、粉选票、蓝封面、深色封套）专用
+   双管线：
+   【自动】颜色分类管线——前景参考=种子点（画面中央）取样块中位色
+   （先剔除高亮低彩度的反光像素），背景参考=画面边界环中位色；
+   全图最近邻分类（模糊地带划给背景，过远杂色不认领）→ 边界洪泛
+   回填纸内反光/字迹孔洞 → 闭运算桥接细切痕 → 选中野最大/含种子的
+   连通块。完整不切断，白色桌面/衬纸因最近邻归入背景（白色也可能是背景）。
+   【点选】种子生长管线——从点选处按自适应色差容差 + Sobel 强边缘
+   屏障 + 2px 细障桥接生长出核心区，天然只含点选目标；生长有效时
+   优先采用（用户意图），不合格退回分类管线。
    ================================================================ */
 function cvMedian3(a){
   if(!a.length)return 0;
@@ -1434,24 +1436,7 @@ function cvMedian3(a){
 }
 function cvDetectColor(rgba,gray,w,h,seed,level){
   const N=w*h;
-  /* 距离度量：彩度欧氏距离×260 + 亮度差×0.62（彩度主导，亮度辅助） */
-  function distCR(cr1,cg1,L1,cr2,cg2,L2){
-    const dx=cr1-cr2,dy=cg1-cg2;
-    return Math.sqrt(dx*dx+dy*dy)*260+Math.abs(L1-L2)*0.62;
-  }
-  /* ---- 1. 背景色：画面边界 5% 环（桌面/衬布），每 2px 取样 ---- */
-  const mX=Math.max(2,Math.round(w*0.05)),mY=Math.max(2,Math.round(h*0.05));
-  const bR=[],bG=[],bB=[];
-  for(let y=0;y<h;y+=2){
-    const inTB=y<mY||y>=h-mY;
-    for(let x=0;x<w;x+=2){
-      if(!inTB&&x>=mX&&x<w-mX)continue;
-      const j=(y*w+x)*4;
-      bR.push(rgba[j]);bG.push(rgba[j+1]);bB.push(rgba[j+2]);
-    }
-  }
-  if(bR.length<24)return null;
-  /* ---- 2. 前景色：种子点（默认画面中央）周围 16% 取样块 ---- */
+  /* ---- 1. 前景参考色：种子点（默认画面中央）周围 16% 取样块 ---- */
   const sx=seed?Math.max(0,Math.min(1,seed.x))*w:w*0.5;
   const sy=seed?Math.max(0,Math.min(1,seed.y))*h:h*0.5;
   const hw=Math.max(4,Math.round(w*0.08)),hh=Math.max(4,Math.round(h*0.08));
@@ -1465,28 +1450,58 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
     }
   }
   if(fR.length<24)return null;
-  const mr=cvMedian3(bR),mg=cvMedian3(bG),mb=cvMedian3(bB);
-  const fr=cvMedian3(fR),fg2=cvMedian3(fG),fb=cvMedian3(fB);
-  const sB=mr+mg+mb+1,sF=fr+fg2+fb+1;
-  const bcr=mr/sB,bcg=mg/sB,bL=mr*0.299+mg*0.587+mb*0.114;
+  /* 反光感知：高亮且低彩度的像素（反光特征）先剔除再取中位色；
+     剔除后所剩过少（白纸/灰袋本身高亮低彩）则退回全样本 */
+  const smpN=fR.length,coreR=[],coreG=[],coreB=[];
+  for(let i=0;i<smpN;i++){
+    const r=fR[i],g=fG[i],b=fB[i];
+    const s=r+g+b+1,cr=r/s,cg=g/s;
+    const L=r*0.299+g*0.587+b*0.114;
+    if(L>=205&&Math.sqrt((cr-0.3333)*(cr-0.3333)+(cg-0.3333)*(cg-0.3333))<=0.09)continue;
+    coreR.push(r);coreG.push(g);coreB.push(b);
+  }
+  const glareFilt=coreR.length>=smpN*0.35;
+  const useR=glareFilt?coreR:fR,useG=glareFilt?coreG:fG,useB=glareFilt?coreB:fB;
+  const fr=cvMedian3(useR),fg2=cvMedian3(useG),fb=cvMedian3(useB);
+  const sF=fr+fg2+fb+1;
   const fcr=fr/sF,fcg=fg2/sF,fL=fr*0.299+fg2*0.587+fb*0.114;
-  const sceneD=distCR(fcr,fcg,fL,bcr,bcg,bL);
-  if(sceneD<26)return null;              /* 种子处与背景无颜色区分 → 交给白纸分割 */
-  const bias=Math.max(8,sceneD*0.10);    /* 模糊地带划给背景 → 框更贴纸边不外扩 */
-  const cap=sceneD*1.6+60;               /* 与前景差异过大的远处杂色不认领 */
-  /* ---- 3. 最近邻分类：靠近前景色 → 候选纸张 ---- */
+  const chromaMag=Math.sqrt((fcr-0.3333)*(fcr-0.3333)+(fcg-0.3333)*(fcg-0.3333));
+  function distFg(j,gi){
+    const s=rgba[j]+rgba[j+1]+rgba[j+2]+1;
+    const dx=rgba[j]/s-fcr,dy=rgba[j+1]/s-fcg;
+    return Math.sqrt(dx*dx+dy*dy)*260+Math.abs(gray[gi]-fL)*0.62;
+  }
+  /* ---- 2. 背景参考色：画面边界 5% 环 ---- */
+  const mX=Math.max(2,Math.round(w*0.05)),mY=Math.max(2,Math.round(h*0.05));
+  const bR=[],bG=[],bB=[];
+  for(let y=0;y<h;y+=2){
+    const inTB=y<mY||y>=h-mY;
+    for(let x=0;x<w;x+=2){
+      if(!inTB&&x>=mX&&x<w-mX)continue;
+      const j=(y*w+x)*4;
+      bR.push(rgba[j]);bG.push(rgba[j+1]);bB.push(rgba[j+2]);
+    }
+  }
+  if(bR.length<24)return null;
+  const mr=cvMedian3(bR),mg=cvMedian3(bG),mb=cvMedian3(bB);
+  const sB=mr+mg+mb+1;
+  const bcr=mr/sB,bcg=mg/sB,bL=mr*0.299+mg*0.587+mb*0.114;
+  const dxb=fcr-bcr,dyb=fcg-bcg;
+  const sceneD=Math.sqrt(dxb*dxb+dyb*dyb)*260+Math.abs(fL-bL)*0.62;
+  if(sceneD<26&&!seed)return null;       /* 自动模式：种子处与背景无颜色区分 → 交给白纸分割；
+                                            点选模式不受此限：用户明确指定，低色差也要尝试 */
+  const bias=Math.max(8,sceneD*0.10);    /* 模糊地带划给背景 → 框贴纸边不外扩 */
+  const cap=sceneD*1.6+60;               /* 与前景差异过大的远处杂色不认领（如邻接的红书） */
+  /* ---- 3. 全图最近邻分类：靠前景 → 候选掩码 ---- */
   const mask=new Uint8Array(N);
   for(let i=0,j=0;i<N;i++,j+=4){
     const s=rgba[j]+rgba[j+1]+rgba[j+2]+1;
     const cr=rgba[j]/s,cg=rgba[j+1]/s;
     const dF=Math.sqrt((cr-fcr)*(cr-fcr)+(cg-fcg)*(cg-fcg))*260+Math.abs(gray[i]-fL)*0.62;
-    if(dF<cap){
-      const dB=Math.sqrt((cr-bcr)*(cr-bcr)+(cg-bcg)*(cg-bcg))*260+Math.abs(gray[i]-bL)*0.62;
-      if(dF+bias<dB)mask[i]=1;
-    }
+    const dB=Math.sqrt((cr-bcr)*(cr-bcr)+(cg-bcg)*(cg-bcg))*260+Math.abs(gray[i]-bL)*0.62;
+    if(dF+bias<dB&&dF<cap)mask[i]=1;
   }
-  /* ---- 4. 边界洪泛标「外部」，未标记的非纸张像素 = 纸内孔洞 → 填充
-         （反光点、印章、字迹全部并入，不再被误判为边界） ---- */
+  /* ---- 4. 边界洪泛标「外部」→ 纸内反光/字迹/印章作为孔洞回填；闭运算桥接细切痕 ---- */
   const vis=new Uint8Array(N),stk=new Int32Array(N);
   let sp=0;
   for(let x=0;x<w;x++){
@@ -1507,8 +1522,6 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
     if(py<h-1&&!mask[p+w]&&!vis[p+w]){vis[p+w]=1;stk[sp++]=p+w;}
   }
   for(let q=0;q<N;q++){if(!mask[q]&&!vis[q])mask[q]=1;}
-  /* ---- 4.5 闭运算（膨胀2轮+腐蚀2轮）：桥接 2px 级细切痕——
-         压在纸上的细线、绳子、刮痕不再把纸张掩码切成碎块 ---- */
   const tmp=new Uint8Array(N);
   for(let it=0;it<2;it++){
     tmp.set(mask);
@@ -1526,7 +1539,7 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
       if((x>0&&!tmp[i-1])||(x<w-1&&!tmp[i+1])||(y>0&&!tmp[i-w])||(y<h-1&&!tmp[i+w]))mask[i]=0;
     }
   }
-  /* ---- 5. 连通块标号：包含种子点的块优先（中央/点选优先），最大块兜底 ---- */
+  /* ---- 5. 连通块标号：含种子像素的块优先（中央/点选优先），最大块兜底 ---- */
   const lbl=new Int32Array(N);
   const sizes=[0];
   let cur=0;
@@ -1546,76 +1559,157 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
       sizes[cur]=cnt;
     }
   }
+  let chosen=0;
   const seedIdx=Math.min(N-1,Math.round(sy)*w+Math.round(sx));
   const seedLbl=lbl[seedIdx]||0;
-  let bestLbl=0,bestN=0;
-  for(let l=1;l<sizes.length;l++){if(sizes[l]>bestN){bestN=sizes[l];bestLbl=l;}}
-  let chosen=0;
   if(seedLbl&&sizes[seedLbl]>=N*(seed?0.02:0.05))chosen=seedLbl;
-  if(!chosen&&bestN>=N*0.06)chosen=bestLbl;
-  if(!chosen)return null;
-  /* ---- 6. 包围盒 + 边界点 + 打分采样，单趟完成 ---- */
-  const colTop=new Int32Array(w),colBot=new Int32Array(w);
-  const rowL=new Int32Array(h),rowR=new Int32Array(h);
-  const sampX=new Int32Array(640),sampY=new Int32Array(640);
-  colTop.fill(-1);colBot.fill(-1);rowL.fill(-1);rowR.fill(-1);
-  let x0=w,y0=h,x1=-1,y1=-1,seen=0,sn=0;
-  const cn=sizes[chosen];
-  const sampStep=Math.max(1,(cn/600)|0);
-  for(let yy=0;yy<h;yy++){
-    const row=yy*w;
-    for(let xx=0;xx<w;xx++){
-      const j=row+xx;
-      if(lbl[j]!==chosen)continue;
-      if(xx<x0)x0=xx;if(xx>x1)x1=xx;
-      if(yy<y0)y0=yy;if(yy>y1)y1=yy;
-      if(colTop[xx]<0)colTop[xx]=yy;
-      colBot[xx]=yy;
-      if(rowL[yy]<0)rowL[yy]=xx;
-      rowR[yy]=xx;
-      if((seen++%sampStep)===0&&sn<640){sampX[sn]=xx;sampY[sn]=yy;sn++;}
+  if(!chosen){
+    let bigN=0,bigL=0;
+    for(let l=1;l<sizes.length;l++){if(sizes[l]>bigN){bigN=sizes[l];bigL=l;}}
+    if(bigL&&bigN>=N*0.06)chosen=bigL;
+  }
+  /* 区域 → 四边形：包围盒门限 + 边界点 + 凸包/DP/角点吸附（边缘）+
+     旋转矩形/包围盒兜底 + 对称对比度打分，分类与生长两条管线共用 */
+  function fitRegion(reg,cnt){
+    let rx0=w,ry0=h,rx1=-1,ry1=-1;
+    for(let i=0;i<N;i++){
+      if(!reg[i])continue;
+      const yy=(i/w)|0,xx=i-yy*w;
+      if(xx<rx0)rx0=xx;if(xx>rx1)rx1=xx;
+      if(yy<ry0)ry0=yy;if(yy>ry1)ry1=yy;
+    }
+    if(rx1<0)return null;
+    const bw2=rx1-rx0+1,bh2=ry1-ry0+1;
+    if(bw2>0.965*w&&bh2>0.965*h)return null;   /* 占满画面，无裁剪意义 */
+    if(cnt/(bw2*bh2)<0.42)return null;
+    const cT=new Int32Array(w).fill(-1),cB=new Int32Array(w).fill(-1);
+    const rL=new Int32Array(h).fill(-1),rR=new Int32Array(h).fill(-1);
+    const sX=new Int32Array(640),sY=new Int32Array(640);
+    let seen=0,sn=0;
+    const sStep=Math.max(1,(cnt/600)|0);
+    for(let yy=0;yy<h;yy++){
+      const row=yy*w;
+      for(let xx=0;xx<w;xx++){
+        const i=row+xx;
+        if(!reg[i])continue;
+        if(cT[xx]<0)cT[xx]=yy;
+        cB[xx]=yy;
+        if(rL[yy]<0)rL[yy]=xx;
+        rR[yy]=xx;
+        if((seen++%sStep)===0&&sn<640){sX[sn]=xx;sY[sn]=yy;sn++;}
+      }
+    }
+    const bpts=[];
+    const stp3=w>260?2:1;
+    for(let cx2=0;cx2<w;cx2+=stp3){
+      if(cT[cx2]>=0){bpts.push({x:cx2,y:cT[cx2]});bpts.push({x:cx2,y:cB[cx2]});}
+    }
+    for(let ry2=0;ry2<h;ry2+=stp3){
+      if(rL[ry2]>=0){bpts.push({x:rL[ry2],y:ry2});bpts.push({x:rR[ry2],y:ry2});}
+    }
+    const sample=[];
+    for(let si=0;si<sn;si++)sample.push({x:sX[si],y:sY[si]});
+    let quad=null;
+    const hull=cvHull(bpts);
+    if(hull&&hull.length>=4){
+      const peri=polyPerimeter(hull);
+      let poly=cvDPClosed(hull,Math.max(3,peri*0.02));
+      if(poly.length>4)poly=cvReduceTo4(poly);
+      if(poly&&poly.length===4&&validQuadMask(poly,w,h)){
+        const sc0=scoreQuad(poly,sample,gray,w,h,true);
+        const snap=snapQuadToHull(poly,hull);
+        const sc1=(snap===poly)?-1:scoreQuad(snap,sample,gray,w,h,true);
+        quad=(sc1>sc0&&validQuadMask(snap,w,h))?snap:poly;
+      }
+    }
+    if(!quad){
+      const mrq=hull&&hull.length>=4?minAreaRect(hull):null;
+      if(mrq&&validQuadMask(mrq,w,h))quad=mrq;
+    }
+    if(!quad)quad=[{x:rx0,y:ry0},{x:rx1,y:ry0},{x:rx1,y:ry1},{x:rx0,y:ry1}];
+    const sc=scoreQuad(quad,sample,gray,w,h,true);
+    if(sc<=0)return null;
+    return{quad:quad,score:sc};
+  }
+  const pad2=Math.max(0.008,precParams(level===undefined?1:level).pad*2);
+  /* ---- 6. 候选A：分类管线选中块（自动模式的常规结果） ---- */
+  let candA=null;
+  if(chosen){
+    const regA=new Uint8Array(N);
+    let cn=0;
+    for(let i=0;i<N;i++){if(lbl[i]===chosen){regA[i]=1;cn++;}}
+    const f=fitRegion(regA,cn);
+    if(f)candA={found:true,quad:padQuad(f.quad,pad2,w,h),score:f.score,chromatic:chromaMag>=0.025};
+  }
+  if(!seed)return candA;
+  /* ---- 7. 候选B（点选时）：种子生长管线——从点选处生长，只含点选目标 ---- */
+  const dd=[];
+  for(let y=fy0;y<fy1;y+=2){
+    for(let x=fx0;x<fx1;x+=2){
+      const gi=y*w+x,gj=gi*4;
+      const s=rgba[gj]+rgba[gj+1]+rgba[gj+2]+1,cr=rgba[gj]/s,cg=rgba[gj+1]/s;
+      const L=rgba[gj]*0.299+rgba[gj+1]*0.587+rgba[gj+2]*0.114;
+      if(glareFilt&&L>=205&&Math.sqrt((cr-0.3333)*(cr-0.3333)+(cg-0.3333)*(cg-0.3333))<=0.09)continue;
+      dd.push(distFg(gj,gi));
     }
   }
-  const bw=x1-x0+1,bh=y1-y0+1;
-  if(bw>0.965*w&&bh>0.965*h)return null;   /* 占满画面，无裁剪意义 */
-  if(cn/(bw*bh)<0.42)return null;
-  const bpts=[];
-  const stp=w>260?2:1;
-  for(let cx2=0;cx2<w;cx2+=stp){
-    if(colTop[cx2]>=0){bpts.push({x:cx2,y:colTop[cx2]});bpts.push({x:cx2,y:colBot[cx2]});}
-  }
-  for(let ry=0;ry<h;ry+=stp){
-    if(rowL[ry]>=0){bpts.push({x:rowL[ry],y:ry});bpts.push({x:rowR[ry],y:ry});}
-  }
-  const sample=[];
-  for(let si=0;si<sn;si++)sample.push({x:sampX[si],y:sampY[si]});
-  /* ---- 7. 拟合：凸包→DP 四边形→角点吸附；退回旋转矩形→包围盒 ----
-         打分用对称对比度：深色纸配浅桌、浅色纸配深桌都算有效对比 */
-  let quad=null;
-  const hull=cvHull(bpts);
-  if(hull&&hull.length>=4){
-    const peri=polyPerimeter(hull);
-    let poly=cvDPClosed(hull,Math.max(3,peri*0.02));
-    if(poly.length>4)poly=cvReduceTo4(poly);
-    if(poly&&poly.length===4&&validQuadMask(poly,w,h)){
-      const sc0=scoreQuad(poly,sample,gray,w,h,true);
-      const snap=snapQuadToHull(poly,hull);
-      const sc1=(snap===poly)?-1:scoreQuad(snap,sample,gray,w,h,true);
-      quad=(sc1>sc0&&validQuadMask(snap,w,h))?snap:poly;
+  if(dd.length>=24){
+    dd.sort(function(a,b){return a-b;});
+    const p85=dd[(dd.length*0.85)|0]||0;
+    /* 容差从紧：褶皱/噪点推高 P85 时容易把邻近白纸容进来（灰袋场景），
+       线性小系数+低限幅，宁小勿大——生长不足只影响得分，有分类管线兜底 */
+    const tol=Math.max(26,Math.min(48,p85+6));
+    const soft=tol*0.55;
+    const bl=cvBlur(gray,w,h);
+    const sd=cvSobel(bl,w,h);
+    const BARRIER=110;
+    const core=new Uint8Array(N);
+    sp=0;
+    for(let y=fy0;y<fy1;y+=2){
+      for(let x=fx0;x<fx1;x+=2){
+        const i=y*w+x;
+        if(distFg(i*4,i)<=tol*1.15){core[i]=1;stk[sp++]=i;}
+      }
+    }
+    while(sp){
+      const u=stk[--sp],uy=(u/w)|0,ux=u-uy*w;
+      for(let k=0;k<4;k++){
+        const nx2=ux+(k===0?-1:k===1?1:0),ny2=uy+(k===2?-1:k===3?1:0);
+        if(nx2<0||ny2<0||nx2>=w||ny2>=h)continue;
+        const ni=ny2*w+nx2;
+        if(core[ni])continue;
+        const d=distFg(ni*4,ni);
+        if(d>tol)continue;
+        if(d>soft&&sd.mag[ni]>BARRIER){
+          const vx=nx2-ux,vy=ny2-uy;
+          let ok=true;
+          for(let b=2;b<=3;b++){
+            const bx3=ux+vx*b,by3=uy+vy*b;
+            if(bx3<0||by3<0||bx3>=w||by3>=h){ok=false;break;}
+            if(distFg((by3*w+bx3)*4,by3*w+bx3)>tol){ok=false;break;}
+          }
+          if(!ok)continue;
+          for(let b=1;b<=3;b++){
+            const bi=(uy+vy*b)*w+ux+vx*b;
+            if(!core[bi]){core[bi]=1;stk[sp++]=bi;}
+          }
+        }else{core[ni]=1;stk[sp++]=ni;}
+      }
+    }
+    let cn=0;
+    for(let i=0;i<N;i++)if(core[i])cn++;
+    if(cn>=N*0.02){
+      const f=fitRegion(core,cn);
+      /* 生长结果与分类结果面积接近或更紧时优先（双确认/点选更精确）；
+         明显更大=生长顺着阴影爬进了邻近背景（低色差泄漏），退回分类管线 */
+      if(f&&f.score>=0.40){
+        const candB={found:true,quad:padQuad(f.quad,pad2,w,h),score:f.score,chromatic:chromaMag>=0.025};
+        if(!candA)return candB;
+        return quadArea(candB.quad)<=quadArea(candA.quad)*1.6?candB:candA;
+      }
     }
   }
-  if(!quad){
-    const mrq=hull&&hull.length>=4?minAreaRect(hull):null;
-    if(mrq&&validQuadMask(mrq,w,h))quad=mrq;
-  }
-  if(!quad)quad=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
-  const sc=scoreQuad(quad,sample,gray,w,h,true);
-  if(sc<=0)return null;
-  /* 前景是否为明显彩色（红头文件/彩封/选票=是；白纸=否）。
-     彩色场景按需求优先识别画面中央物品，编排层据此给彩色结果让路 */
-  const chromaMag=Math.sqrt((fcr-0.3333)*(fcr-0.3333)+(fcg-0.3333)*(fcg-0.3333));
-  /* 分类边界略偏紧，外扩幅度取白纸路径 2 倍，保证纸边不裁掉 */
-  return{found:true,quad:padQuad(quad,Math.max(0.008,precParams(level===undefined?1:level).pad*2),w,h),score:sc,chromatic:chromaMag>=0.025};
+  return candA;
 }
 /* 总入口（v2.8）：入参改为整帧 RGBA（彩色路径需要颜色信息），灰度在内部派生
    编排优先级：
@@ -2761,8 +2855,10 @@ async function edgeLoop(){
        提速：找到纸张后 Canny 隔帧才跑一次（fast 轮只做分割），平均耗时近乎减半；
        尚未找到纸张时每轮全流水，保证首锁速度 */
     const fast=(Edge.quad||Edge.confident)?((Edge.frameNo++&1)===0):false;
-    const r=await cvRun(img.data,W,H,precNum(),fast,Edge.focus);
+    const focusSnap=Edge.focus;
+    const r=await cvRun(img.data,W,H,precNum(),fast,focusSnap);
     if(!Edge.active||Edge.manual)return;
+    if(focusSnap!==Edge.focus)return;   /* 等待期间点选已变化，旧结果作废 */
     applyDetect(r);
   }catch(e){}finally{Edge.busy=false;}
 }
@@ -2887,6 +2983,9 @@ $('#camModal').addEventListener('click',e=>{
   if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;
   Edge.focus={x:clamp01((e.clientX-r.left)/r.width),y:clamp01((e.clientY-r.top)/r.height)};
   Edge.manual=false;Edge.lost=0;Edge.cand=null;Edge.candN=0;
+  Edge.target=null;   /* 点选=用户明确意图：跳过防抖立即重锁到点选目标 */
+  clearTimeout(Edge.timer);
+  Edge.timer=setTimeout(edgeLoop,Edge.busy?60:20);
   const fx=document.createElement('div');
   fx.className='tap-ripple';
   fx.style.left=(e.clientX-r.left)+'px';
@@ -2942,14 +3041,45 @@ document.addEventListener('visibilitychange',()=>{
 
 /* ---- 快门 ---- */
 let lastShotId=null;
+/* 缩略图：按单应变换把绿框四边形内容摆正后出图——
+   只含框内内容（旧实现取四边形外接矩形，斜框时会把框外背景全带进来） */
 function quadThumb(srcCv,quad){
-  const xs=quad.map(p=>p.x),ys=quad.map(p=>p.y);
-  const x0=Math.max(0,Math.min(...xs)*srcCv.width),x1=Math.min(srcCv.width,Math.max(...xs)*srcCv.width);
-  const y0=Math.max(0,Math.min(...ys)*srcCv.height),y1=Math.min(srcCv.height,Math.max(...ys)*srcCv.height);
-  const w=Math.max(1,x1-x0),h=Math.max(1,y1-y0);
-  const c=document.createElement('canvas');
-  c.width=Math.round(Math.min(112,w));c.height=Math.round(c.width*h/w);
-  c.getContext('2d').drawImage(srcCv,x0,y0,w,h,0,0,c.width,c.height);
+  const sw=srcCv.width,sh=srcCv.height;
+  const P=quad.map(p=>({x:Math.max(0,Math.min(sw-1,p.x*sw)),y:Math.max(0,Math.min(sh-1,p.y*sh))}));
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const qw=Math.max(dist(P[0],P[1]),dist(P[3],P[2]));
+  const qh=Math.max(dist(P[0],P[3]),dist(P[1],P[2]));
+  let w=Math.round(Math.max(8,Math.min(112,qw)));
+  let h=Math.round(w*qh/Math.max(1,qw));
+  if(h>224){h=224;w=Math.round(Math.max(8,h*qw/Math.max(1,qh)));}
+  const Hm=solveHomography(P,[{x:0,y:0},{x:w,y:0},{x:w,y:h},{x:0,y:h}]);
+  const Hi=invert3(Hm);
+  let s=null;
+  try{s=srcCv.getContext('2d').getImageData(0,0,sw,sh).data;}catch(e){s=null;}
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d');
+  if(!s){ctx.drawImage(srcCv,0,0,sw,sh,0,0,w,h);return c.toDataURL('image/jpeg',0.8);}
+  const o=ctx.createImageData(w,h),od=o.data;
+  for(let y=0;y<h;y++){
+    const yc=y+0.5;
+    for(let x=0;x<w;x++){
+      const xc=x+0.5;
+      const den=Hi[6]*xc+Hi[7]*yc+Hi[8];
+      const u=(Hi[0]*xc+Hi[1]*yc+Hi[2])/den,v=(Hi[3]*xc+Hi[4]*yc+Hi[5])/den;
+      const oi=(y*w+x)*4;
+      if(u<0||v<0||u>sw-1||v>sh-1){od[oi]=od[oi+1]=od[oi+2]=255;od[oi+3]=255;continue;}
+      const x0=u|0,y0=v|0,fx=u-x0,fy=v-y0;
+      const x1=Math.min(sw-1,x0+1),y1=Math.min(sh-1,y0+1);
+      const i00=(y0*sw+x0)*4,i10=(y0*sw+x1)*4,i01=(y1*sw+x0)*4,i11=(y1*sw+x1)*4;
+      for(let k=0;k<3;k++){
+        const top=s[i00+k]+(s[i10+k]-s[i00+k])*fx;
+        const bot=s[i01+k]+(s[i11+k]-s[i01+k])*fx;
+        od[oi+k]=top+(bot-top)*fy;
+      }
+      od[oi+3]=255;
+    }
+  }
+  ctx.putImageData(o,0,0);
   return c.toDataURL('image/jpeg',0.8);
 }
 async function shoot(){
