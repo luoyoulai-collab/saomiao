@@ -175,7 +175,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 .card-actions{display:flex;gap:10px;margin-top:20px}
 .card-actions .btn{margin-top:0}
 
-.fmt{display:flex;gap:10px}
+.fmt{display:flex;flex-direction:column;gap:10px}
 .fmt label{flex:1;border:1.5px solid var(--line);border-radius:13px;padding:12px;cursor:pointer;position:relative;background:#FBF9F3}
 .fmt label.on{border-color:var(--accent);background:var(--accent-soft)}
 .fmt input{display:none}
@@ -329,7 +329,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.8';
+window.__VER='2.9';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -408,6 +408,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10m0 0l-4-4m4 4l4-4"/><path d="M5 19h14"/></symbol>
   <symbol id="i-crop" viewBox="0 0 24 24"><path d="M7 2v15h15"/><path d="M2 7h15v15"/></symbol>
   <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 8.5A8 8 0 1 0 20.5 14"/><path d="M20 3.5v5h-5"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2M6.5 7l.8 12.2A2 2 0 0 0 9.3 21h5.4a2 2 0 0 0 2-1.8L17.5 7"/><path d="M10 11v6M14 11v6"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M4.5 12.5l5 5L19.5 7"/></symbol>
@@ -438,7 +439,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.8</div>
+    <div id="verTag">V2.9</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="dropHint" style="display:none;position:absolute;inset:0;z-index:30;align-items:center;justify-content:center;background:rgba(20,26,20,.72);pointer-events:none">
       <div style="padding:14px 22px;border:1.5px dashed #7BE8B0;border-radius:12px;color:#EAF4EE;font-size:15px;letter-spacing:1px;background:rgba(20,26,20,.85)">松开即可导入图片 / ZIP</div>
@@ -620,6 +621,11 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div class="card-title">分享到微信</div>
     <p class="fine" style="margin-bottom:12px">微信内无法直接调起分享面板。长按下方图片可保存或转发给朋友；如需发 PDF / ZIP 文件，请复制链接到系统浏览器打开本页后再导出。</p>
     <div style="text-align:center;margin-bottom:12px"><img id="wxImg" alt="预览" style="max-width:72%;max-height:46dvh;border-radius:10px;border:1px solid var(--line)"></div>
+    <div id="wxNav" style="display:none;align-items:center;justify-content:center;gap:18px;margin-bottom:12px">
+      <button id="wxPrev" aria-label="上一页" style="width:44px;height:38px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);display:flex;align-items:center;justify-content:center"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-chev"/></svg></button>
+      <span id="wxNavTxt" style="font-size:13px;color:var(--ink2);font-family:'Space Grotesk',monospace;letter-spacing:.05em;min-width:72px;text-align:center"></span>
+      <button id="wxNext" aria-label="下一页" style="width:44px;height:38px;border:1.5px solid var(--line);border-radius:10px;background:var(--paper);display:flex;align-items:center;justify-content:center"><svg class="ic"><use href="#i-chev"/></svg></button>
+    </div>
     <button id="wxCopy" class="btn accent"><svg class="ic"><use href="#i-share"/></svg>复制链接（去浏览器打开）</button>
   </div>
 </div>
@@ -702,6 +708,10 @@ document.getElementById('fatalCopy').onclick=async function(){
     <input id="expName" class="f-input" maxlength="40">
     <label class="f-label">导出格式</label>
     <div class="fmt">
+      <label id="fmtImg"><input type="radio" name="fmt" value="img">
+        <span class="fmt-name"><svg class="ic"><use href="#i-images"/></svg>图片直享</span>
+        <small>逐张直接分享 JPG 到微信，点开即看，适合少量快速分享</small>
+      </label>
       <label id="fmtZip" class="on"><input type="radio" name="fmt" value="zip" checked>
         <span class="fmt-name"><svg class="ic"><use href="#i-images"/></svg>ZIP 图片包</span>
         <small>文件名为「文档名_01」或「文档名_本页命名」，解压即可识别每张内容</small>
@@ -714,7 +724,7 @@ document.getElementById('fatalCopy').onclick=async function(){
     <div id="expMeta">共 0 页</div>
     <button id="btnShare" class="btn accent"><svg class="ic"><use href="#i-share"/></svg>分享 / 发送到微信</button>
     <button id="btnSaveLocal" class="btn ghost"><svg class="ic"><use href="#i-download"/></svg>仅保存到设备</button>
-    <p class="fine">全部图像仅在本机处理与打包，不会经过任何服务器。若系统分享面板未弹出，文件会自动下载，可在微信聊天中点「＋ → 文件」发送。</p>
+    <p class="fine">全部图像仅在本机处理与打包，不会经过任何服务器。少量页推荐「图片直享」逐张分享原图；若系统分享面板未弹出，文件会自动下载，可在微信聊天中点「＋ → 文件」发送。</p>
   </div>
 </div>
 
@@ -746,7 +756,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.8</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.9</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -777,8 +787,8 @@ document.getElementById('fatalCopy').onclick=async function(){
       <p><b>文件包怎么用？</b>右上角 📁：拍完一份 → 新建一份自动切换；导出只导出当前文档。</p>
       <p><b>系统授权了还是打不开相机？</b>浏览器把「拒绝」记在浏览器内部，需在浏览器内改回允许：地址栏 🔒 → 权限 → 摄像头 → 允许。</p>
       <p><b>电脑上怎么用？</b>在电脑浏览器打开本页即自动切换电脑模式：拍照用电脑摄像头；「相册」可选文件夹 / ZIP 压缩包 / 多选图片批量导入，文件夹与 ZIP 名称自动作为文档名，可选保留原图片名。</p>
-      <p><b>微信里怎么分享？</b>微信内置浏览器调不起分享面板，点分享会弹出小窗预览：长按图片即可保存或转发；要发 PDF/ZIP，先复制链接到系统浏览器打开再导出。</p>
-      <p><b>怎么发给微信？</b>导出 → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
+      <p><b>微信里怎么分享？</b>导出选「图片直享」逐页长按图片保存/转发（多页可左右翻页）；要发 PDF/ZIP，先复制链接到系统浏览器打开再导出。</p>
+      <p><b>怎么发给微信？</b>少量页选「图片直享」→ 分享 → 选微信，点开即看；多页或正式提交选 ZIP/PDF → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
     </div>
     </div>
 
@@ -2391,7 +2401,8 @@ const DB={db:null,
 };
 
 /* ================= 全局状态 ================= */
-const MAXSIDE=1600;
+/* 扫描件长边上限：2560px 约 A4 220DPI，文字边缘清晰可读（v2.9 前为 1600，文字发糊） */
+const MAXSIDE=2560;
 let pages=[],current=0,queue=[],working=false,qDone=0,qTotal=0,busyN=0,memWarned=false;
 const state={dbOk:null};
 let curDocId=null,curDocMeta=null;
@@ -2814,7 +2825,7 @@ async function addPhoto(blob,presetQuad,shotId,presetName){
   if(shotId&&retakeSet.has(shotId))return;
   const out=await processPageAsync(page,src);
   page.outW=out.width;page.outH=out.height;
-  const ob=await canvasToBlob(out,0.86);
+  const ob=await canvasToBlob(out,0.9);
   if(!ob)throw new Error('图像编码失败（内存不足？）');
   page.outBlob=ob;
   page.outURL=URL.createObjectURL(ob);
@@ -2832,7 +2843,7 @@ async function reprocess(p){
   if(!p.srcBlob)throw new Error('原图数据缺失，无法重新处理');
   const src=await blobToCanvas(p.srcBlob);
   const out=await processPageAsync(p,src);
-  const nb=await canvasToBlob(out,0.86);
+  const nb=await canvasToBlob(out,0.9);
   if(!nb)throw new Error('图像编码失败（内存不足？）');
   const nurl=URL.createObjectURL(nb);
   if(p.outURL)URL.revokeObjectURL(p.outURL);
@@ -2873,7 +2884,8 @@ function camErrHint(e){
 }
 async function getStream(){
   const attempts=[
-    {video:{facingMode:'environment',width:{ideal:1440},height:{ideal:1080}},audio:false},
+    /* 优先请求最高分辨率（ideal 取不到时浏览器自动选最接近的档位），文档文字才够清晰 */
+    {video:{facingMode:'environment',width:{ideal:3840},height:{ideal:2160}},audio:false},
     {video:{facingMode:'environment'},audio:false},
     {video:true,audio:false}
   ];
@@ -3344,22 +3356,35 @@ function buildZipName(p,idx,used){
   used.add(n);
   return n+'.jpg';
 }
-/* 微信内分享小窗：展示当前页成品图，长按即可保存/转发 */
-let wxImgUrl=null;
-async function showWxShare(filename){
-  const m=$('#wxModal');
-  const img=$('#wxImg');
-  if(wxImgUrl){try{URL.revokeObjectURL(wxImgUrl);}catch(e){}wxImgUrl=null;}
-  const p=pages[current]||pages[pages.length-1];
-  if(p&&p.outBlob){
-    wxImgUrl=URL.createObjectURL(p.outBlob);
-    img.src=wxImgUrl;img.style.display='inline-block';
-  }else{
+/* 微信内分享小窗：展示成品图，长按即可保存/转发；多页时支持左右翻页逐张转发 */
+let wxImgUrl=null,wxList=[],wxIdx=0;
+function renderWxImg(){
+  const img=$('#wxImg'),nav=$('#wxNav');
+  if(!wxList.length){
     img.removeAttribute('src');img.style.display='none';
+    nav.style.display='none';return;
   }
-  img.dataset.fn=filename||'';
-  openM(m);
+  if(wxImgUrl){try{URL.revokeObjectURL(wxImgUrl);}catch(e){}}
+  wxImgUrl=URL.createObjectURL(wxList[wxIdx]);
+  img.src=wxImgUrl;img.style.display='inline-block';
+  const multi=wxList.length>1;
+  nav.style.display=multi?'flex':'none';
+  if(multi)$('#wxNavTxt').textContent=wxIdx+1+' / '+wxList.length;
 }
+async function showWxShare(filename){
+  wxList=pages.map(p=>p.outBlob).filter(Boolean);
+  wxIdx=Math.max(0,Math.min(current,wxList.length-1));
+  renderWxImg();
+  $('#wxImg').dataset.fn=filename||'';
+  openM($('#wxModal'));
+}
+function wxStep(d){
+  if(!wxList.length)return;
+  wxIdx=(wxIdx+d+wxList.length)%wxList.length;
+  renderWxImg();vibrate(8);
+}
+$('#wxPrev').onclick=()=>wxStep(-1);
+$('#wxNext').onclick=()=>wxStep(1);
 $('#wxClose').onclick=()=>closeM($('#wxModal'));
 $('#wpcClose').onclick=()=>closeM($('#wxPcModal'));
 $('#wpcOk').onclick=()=>closeM($('#wxPcModal'));
@@ -3372,52 +3397,96 @@ $('#wxCopy').onclick=async()=>{
   }
 };
 
+/* 逐张下载（图片直享的保存/降级路径）：间隔触发，避免浏览器拦截连续下载 */
+async function downloadFiles(files){
+  for(let i=0;i<files.length;i++){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(files[i]);a.download=files[i].name;
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(u=>URL.revokeObjectURL(u),4000,a.href);
+    if(i<files.length-1)await new Promise(r=>setTimeout(r,350));
+  }
+}
+/* 图片直享：不打包，逐张 JPG 直接分享（微信聊天点开即看，适合少量快速分享） */
+async function exportImages(share,name){
+  const used=new Set(),files=[];
+  for(let i=0;i<pages.length;i++){
+    if(!pages[i].outBlob)continue;
+    files.push(new File([pages[i].outBlob],buildZipName(pages[i],i,used),{type:'image/jpeg'}));
+  }
+  if(!files.length)throw new Error('没有可分享的成品图');
+  if(share&&isWeChat){
+    /* 微信内置浏览器调不起分享面板：逐页长按保存/转发（多页可翻页） */
+    await showWxShare(name);return;
+  }
+  if(share&&!isDesktop&&navigator.canShare&&navigator.canShare({files})){
+    try{
+      await navigator.share({files,title:name});
+      toast('已调起系统分享，选择微信即可发送');return;
+    }catch(e){
+      if(e&&e.name==='AbortError')return;
+      /* 面板调起失败（页数过多或超系统限制）转逐张下载 */
+    }
+  }
+  await downloadFiles(files);
+  if(share&&isDesktop){
+    $('#wpcFile').textContent=name+'（共 '+files.length+' 张图片）';
+    openM($('#wxPcModal'));
+  }else{
+    toast(share?'浏览器不支持直接分享，图片已逐张下载，可在微信聊天中点「＋ → 文件」发送':'图片已逐张保存到下载目录',share?'warn':undefined);
+  }
+}
+
 async function doExport(share){
   if(!pages.length)return;
   const name=safeFileName($('#expName').value||docName);
-  showBusy('正在生成文件…');await tick();
+  showBusy(exportFmt==='img'?'正在准备图片…':'正在生成文件…');await tick();
   try{
-    let blob,filename;
-    if(exportFmt==='zip'){
-      const files=[],used=new Set();
-      for(let i=0;i<pages.length;i++){
-        files.push({name:buildZipName(pages[i],i,used),
-          data:new Uint8Array(await pages[i].outBlob.arrayBuffer())});
-      }
-      blob=makeZip(files);filename=`${name}.zip`;
+    if(exportFmt==='img'){
+      await exportImages(share,name);
     }else{
-      const imgs=[];
-      for(const p of pages){
-        imgs.push({data:new Uint8Array(await p.outBlob.arrayBuffer()),w:p.outW,h:p.outH});
+      let blob,filename;
+      if(exportFmt==='zip'){
+        const files=[],used=new Set();
+        for(let i=0;i<pages.length;i++){
+          files.push({name:buildZipName(pages[i],i,used),
+            data:new Uint8Array(await pages[i].outBlob.arrayBuffer())});
+        }
+        blob=makeZip(files);filename=`${name}.zip`;
+      }else{
+        const imgs=[];
+        for(const p of pages){
+          imgs.push({data:new Uint8Array(await p.outBlob.arrayBuffer()),w:p.outW,h:p.outH});
+        }
+        blob=makePDF(imgs);filename=`${name}.pdf`;
       }
-      blob=makePDF(imgs);filename=`${name}.pdf`;
-    }
-    const file=new File([blob],filename,{type:blob.type});
-    if(share&&isWeChat){
-      /* 微信内置浏览器调不起分享面板：改走小窗预览（长按保存/转发 + 复制链接） */
-      await showWxShare(filename);
-    }else if(share&&isDesktop){
-      /* 电脑端：PC 微信不注册系统分享目标，navigator.share 面板里选不到微信；
-         直接下载并给出明确指引，用户拖进微信聊天框即可发送 */
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);a.download=filename;
-      document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-      $('#wpcFile').textContent=filename;
-      openM($('#wxPcModal'));
-    }else if(share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({files:[file],title:filename});
-        toast('已调起系统分享，选择微信即可发送');
-      }catch(e){
-        if(e&&e.name!=='AbortError')throw e;
+      const file=new File([blob],filename,{type:blob.type});
+      if(share&&isWeChat){
+        /* 微信内置浏览器调不起分享面板：改走小窗预览（长按保存/转发 + 复制链接） */
+        await showWxShare(filename);
+      }else if(share&&isDesktop){
+        /* 电脑端：PC 微信不注册系统分享目标，navigator.share 面板里选不到微信；
+           直接下载并给出明确指引，用户拖进微信聊天框即可发送 */
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);a.download=filename;
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+        $('#wpcFile').textContent=filename;
+        openM($('#wxPcModal'));
+      }else if(share&&navigator.canShare&&navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({files:[file],title:filename});
+          toast('已调起系统分享，选择微信即可发送');
+        }catch(e){
+          if(e&&e.name!=='AbortError')throw e;
+        }
+      }else{
+        const a=document.createElement('a');
+        a.href=URL.createObjectURL(blob);a.download=filename;
+        document.body.appendChild(a);a.click();a.remove();
+        setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+        toast(share?'浏览器不支持直接分享，文件已下载，可在微信聊天中点「＋ → 文件」发送':'文件已保存到下载目录','warn');
       }
-    }else{
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);a.download=filename;
-      document.body.appendChild(a);a.click();a.remove();
-      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-      toast(share?'浏览器不支持直接分享，文件已下载，可在微信聊天中点「＋ → 文件」发送':'文件已保存到下载目录','warn');
     }
   }catch(e){
     console.error(e);
@@ -3477,6 +3546,11 @@ window.__buildReport=function(){
 /* 更新日志：每次更新在最上面加一条 {ver,date,items[]}，
    「诊断与帮助 → 更新日志」分页自动展示，无需改其他代码 */
 const CHANGELOG=[
+  {ver:'2.9',date:'2026-09-26',items:[
+    '扫描清晰度大幅提升：相机改按设备最高可用分辨率取流（最高支持 4K，旧版限制在 1080P），扫描件长边上限由 1600px 提升至 2560px，导出压缩质量同步调高，合同、单据、证件等文字边缘明显更锐利',
+    '新增「图片直享」导出格式：不打包，逐张直接把 JPG 分享到微信，少量扫描件免解压、聊天里点开即看；微信内可左右翻页逐张长按保存/转发',
+    '「图片直享」在不支持分享面板的环境自动降级为逐张下载，文件名沿用「文档名_页码/命名」规则'
+  ]},
   {ver:'2.8',date:'2026-09-19',items:[
     '新增随缘捐赠：主界面右上角爱心按钮，点收款码可放大查看，长按可识别或保存（支付宝/微信均支持）',
     '修复竖拍文档出图横置的问题：竖着拍就是竖着的预览和扫描图，横着拍才是横图，彩色封面同样生效，不再需要手动旋转',
@@ -3701,8 +3775,15 @@ btnExport.onclick=openExport;
 $('#expClose').onclick=()=>closeM($('#expModal'));
 $('#btnShare').onclick=()=>doExport(true);
 $('#btnSaveLocal').onclick=()=>doExport(false);
-$('#fmtZip').onclick=()=>{exportFmt='zip';$('#fmtZip').classList.add('on');$('#fmtPdf').classList.remove('on');};
-$('#fmtPdf').onclick=()=>{exportFmt='pdf';$('#fmtPdf').classList.add('on');$('#fmtZip').classList.remove('on');};
+function setFmt(f){
+  exportFmt=f;
+  $('#fmtImg').classList.toggle('on',f==='img');
+  $('#fmtZip').classList.toggle('on',f==='zip');
+  $('#fmtPdf').classList.toggle('on',f==='pdf');
+}
+$('#fmtImg').onclick=()=>setFmt('img');
+$('#fmtZip').onclick=()=>setFmt('zip');
+$('#fmtPdf').onclick=()=>setFmt('pdf');
 $('#docBtn').onclick=()=>{$('#renameInput').value=docName;openM($('#renameModal'));};
 $('#rnCancel').onclick=()=>closeM($('#renameModal'));
 $('#rnOk').onclick=async()=>{
