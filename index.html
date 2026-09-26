@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>快扫侠 · 本机扫描仪</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#121712">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@600;900&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
@@ -329,7 +333,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='2.9';
+window.__VER='3.0';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -439,7 +443,7 @@ document.getElementById('fatalCopy').onclick=async function(){
   <main id="stage">
     <div class="stage-corner sc-tl"></div><div class="stage-corner sc-tr"></div>
     <div class="stage-corner sc-bl"></div><div class="stage-corner sc-br"></div>
-    <div id="verTag">V2.9</div>
+    <div id="verTag">V3.0</div>
     <div id="pageBadge" style="display:none">PAGE 01 / 01</div>
     <div id="dropHint" style="display:none;position:absolute;inset:0;z-index:30;align-items:center;justify-content:center;background:rgba(20,26,20,.72);pointer-events:none">
       <div style="padding:14px 22px;border:1.5px dashed #7BE8B0;border-radius:12px;color:#EAF4EE;font-size:15px;letter-spacing:1px;background:rgba(20,26,20,.85)">松开即可导入图片 / ZIP</div>
@@ -756,7 +760,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 <div class="modal center" id="diagModal">
   <div class="card">
     <div class="card-hd">
-      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v2.9</span></div>
+      <div class="card-title">诊断与帮助 <span id="dgVer" style="font-family:'Space Grotesk',monospace;font-size:11px;letter-spacing:.1em;color:var(--ink2)">v3.0</span></div>
       <button class="icon-btn card-x" id="dgClose"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
 
@@ -789,6 +793,7 @@ document.getElementById('fatalCopy').onclick=async function(){
       <p><b>电脑上怎么用？</b>在电脑浏览器打开本页即自动切换电脑模式：拍照用电脑摄像头；「相册」可选文件夹 / ZIP 压缩包 / 多选图片批量导入，文件夹与 ZIP 名称自动作为文档名，可选保留原图片名。</p>
       <p><b>微信里怎么分享？</b>导出选「图片直享」逐页长按图片保存/转发（多页可左右翻页）；要发 PDF/ZIP，先复制链接到系统浏览器打开再导出。</p>
       <p><b>怎么发给微信？</b>少量页选「图片直享」→ 分享 → 选微信，点开即看；多页或正式提交选 ZIP/PDF → 分享 → 选微信；没有面板就先下载，再在微信里「＋ → 文件」发送。</p>
+      <p><b>怎么更新版本？</b>发送到桌面后联网打开即自动更新到最新版，扫描数据不会丢失；浏览器直接使用则刷新页面即可，无需重新安装。</p>
     </div>
     </div>
 
@@ -3546,6 +3551,11 @@ window.__buildReport=function(){
 /* 更新日志：每次更新在最上面加一条 {ver,date,items[]}，
    「诊断与帮助 → 更新日志」分页自动展示，无需改其他代码 */
 const CHANGELOG=[
+  {ver:'3.0',date:'2026-09-26',items:[
+    '新增自动更新：发送到桌面/主屏幕后，联网打开即自动升级到最新版，不再需要手动重新安装或清缓存',
+    '更新绝不触碰数据：扫描件、文档、命名等全部存在本机 IndexedDB，升级后原样保留',
+    '全新应用图标：红黑配色，绛红古披风配楷体「扫」字；浏览器「发送到桌面/安装」后以独立应用运行'
+  ]},
   {ver:'2.9',date:'2026-09-26',items:[
     '扫描清晰度大幅提升：相机改按设备最高可用分辨率取流（最高支持 4K，旧版限制在 1080P），扫描件长边上限由 1600px 提升至 2560px，导出压缩质量同步调高，合同、单据、证件等文字边缘明显更锐利',
     '新增「图片直享」导出格式：不打包，逐张直接把 JPG 分享到微信，少量扫描件免解压、聊天里点开即看；微信内可左右翻页逐张长按保存/转发',
@@ -3954,6 +3964,15 @@ enableWheelH(document.getElementById('filmstrip'));
   window.__INK_OK=true;
   console.log('[快扫侠] v'+window.__VER+' 初始化完成 · 检测引擎: '+(cvWorker?'Worker':'Inline'));
 })();
+
+/* PWA 自动更新（v3.0）：发送到桌面/主屏的安装版，联网打开即取最新主文档；
+   sw.js 只缓存图标等静态资源，IndexedDB/localStorage 里的扫描数据不经 SW、不受更新影响。
+   非 HTTPS（file:// 等）直接打开单文件时跳过注册，应用功能不受影响 */
+try{
+  if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+    window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+  }
+}catch(e){}
 </script>
 </body>
 </html>

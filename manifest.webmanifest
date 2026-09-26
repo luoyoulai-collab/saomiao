@@ -1,0 +1,17 @@
+{
+  "name": "快扫侠 · 本机扫描仪",
+  "short_name": "快扫侠",
+  "description": "拍照成扫的本地文档扫描仪：自动框选、增强文字、多页成 PDF/ZIP/图片，全部在本机处理，不经服务器",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0C090B",
+  "theme_color": "#121712",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
