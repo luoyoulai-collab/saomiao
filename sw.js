@@ -4,7 +4,7 @@
    用户数据（IndexedDB / localStorage）不经 Service Worker，更新与缓存清理均不会触碰。
    发新版注意：改动 sw.js 本身（如 CACHE 版本号）浏览器会自动重装；若替换了图标等
    静态资源，请同步把 CACHE 升为 saomiao-v<新版本号>，activate 时会自动清掉旧缓存。 */
-const CACHE = 'saomiao-v3.0';
+const CACHE = 'saomiao-v3.1';
 const SHELL = [
   './',
   './index.html',
