@@ -2332,15 +2332,24 @@ try{
     const st=document.getElementById('edgeStat');
     if(st)st.textContent='SEG·INLINE';
   };
+  /* v3.3 预热：空跑一次微型任务，强制引擎函数 JIT 编译——低端机/冷启动的
+     首次真实识别不再把时间耗在解释执行上（v3.2 引擎变重后，手机上首跑
+     超 900ms 超时曾是"相册导入不裁剪"的直接原因）；响应 id='warm' 无回调，忽略 */
+  try{
+    const wb=new Uint8Array(48*64*4);
+    for(let i=0;i<wb.length;i+=4){wb[i]=wb[i+1]=wb[i+2]=200;wb[i+3]=255;}
+    cvWorker.postMessage({buf:wb.buffer,w:48,h:64,id:'warm',level:1,fast:false,seed:null});
+  }catch(e){}
 }catch(e){cvWorker=null;}
-function cvRun(rgba,w,h,level,fast,seed){
+function cvRun(rgba,w,h,level,fast,seed,tmo){
   if(cvWorker){
     return new Promise(res=>{
       const id=++wSeq;
       wPending.set(id,res);
       try{cvWorker.postMessage({buf:rgba.buffer,w:w,h:h,id:id,level:level===undefined?1:level,fast:!!fast,seed:seed||null},[rgba.buffer]);}
       catch(e){wPending.delete(id);res(null);}
-      setTimeout(()=>{if(wPending.has(id)){wPending.delete(id);res(null);}},900);
+      /* 实时取景默认 900ms（旧帧失效即可丢弃）；导入/精修传更长超时（tmo） */
+      setTimeout(()=>{if(wPending.has(id)){wPending.delete(id);res(null);}},tmo||900);
     });
   }
   try{
@@ -2598,7 +2607,16 @@ async function detectQuadSmart(srcCanvas,minScore,seed){
     const g=t.getContext('2d',{willReadFrequently:true});
     g.drawImage(srcCanvas,0,0,w,h);
     const img=g.getImageData(0,0,w,h);
-    const r=await cvRun(img.data,w,h,precNum(),false,seed);
+    /* 导入/精修非实时：超时放款到 2500ms（低端机冷启动 JIT + v3.2 重引擎） */
+    let r=await cvRun(img.data,w,h,precNum(),false,seed,2500);
+    if(!r){
+      /* Worker 超时/异常兜底：主线程内联跑同一引擎——相册导入不再因 Worker 卡死而整页拍全图 */
+      try{
+        const d2=g.getImageData(0,0,w,h);
+        const rr=cvDetectAll(d2.data,w,h,precNum(),false,seed);
+        r={found:rr.found,quad:rr.quad||null,score:rr.score||0};
+      }catch(e){}
+    }
     if(r&&r.found&&r.quad&&r.score>=(minScore!==undefined?minScore:cfg.minScore))return r.quad;
   }catch(e){}
   return null;
@@ -4061,6 +4079,7 @@ const CHANGELOG=[
   {ver:'3.3',date:'2026-09-29',items:[
     '全新应用图标：上五分之四白色纸张、右下角掀起折角、行楷草书「快扫」二字、下五分之一橘红色横条',
     '修复安装版换图标被旧缓存卡住的问题：manifest 与图标引用全部带版本参数，浏览器必按新地址取新图，安装到桌面/主屏不会再出现旧图标；已安装的入口在联网打开一次后由浏览器自动更新图标',
+    '修复部分手机相册导入不自动裁剪：识别引擎变重后低端机首跑易撞上 Worker 900ms 超时——现在引擎启动即预热编译、导入识别超时放款到 2.5 秒、Worker 失效时自动切换主线程识别兜底',
     '主题色与启动画面配色随新图标同步改为白底橘红'
   ]},
   {ver:'3.2',date:'2026-09-29',items:[
