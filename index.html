@@ -333,7 +333,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='3.1';
+window.__VER='3.2';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -782,7 +782,7 @@ document.getElementById('fatalCopy').onclick=async function(){
 
     <label class="f-label">常见问题</label>
     <div class="help-list">
-      <p><b>识别引擎是什么？</b>v3.1 采用三通道分割引擎：白色纸张沿用「白色区域分割」（按阈值选亮区 → 填充字迹孔洞 → 最大白色连通块 → 凸包拟合四边形，角点吸附纸角）；遇到彩色封面、红头文件、深色封套等非白色物品，自动切换「种子生长分割」——以画面中央（或点选处）为种子，按自适应颜色容差生长出物品区域，遇强边缘即止，白色桌面与衬纸不会被误认，反光也无法劫持识别框；v3.1 新增「顶层纸张分割」专门对付叠放纸张——从中央带边缘势垒生长，只框最上面一张（主流扫描软件同款思路：顶张四边是完整闭合边缘，按周长边缘支持度与嵌套关系竞争取优）。各结果与 Canny 边缘法竞争取优，纸张出框、占满画面也能识别。</p>
+      <p><b>识别引擎是什么？</b>v3.2 采用「纸面级锁定」引擎：分割出候选后不再直接采纳，而是统一经过三重校验——①周长边缘支持度（框的四边要压在真实纸张边缘上）；②页边留白校验（真纸张边界内侧是空白带，"框成文字部分"的内侧必切过文字行，据此鉴别并自动外扩到纸边）；③标准纸型比例（A4/A3/B5/Letter 等比例贴近时按保面积+形心微正则，框不再忽大忽小）。分割本身在光照归一化图上进行，阴影、影子遮挡、明暗渐变都会先被拉平，影子下的纸角不再被切掉。白色纸张用「白色区域分割」，彩色封面/红头文件/深色封套自动切换「种子生长分割」，叠放纸张由「顶层纸张分割」只框最上面一张（顶张四边是完整闭合边缘，按支持度与嵌套关系竞争取优）。主流扫描软件"识别后按 A4 校正"的思路在这里以更可靠的方式实现：外扩目标永远是检测出来的真实纸边，A4 等标准比例只作校验与微正则，不是盲目放大。</p>
       <p><b>彩色纸张框不准怎么办？</b>直接点按画面中要拍的纸张，识别会立刻以点选位置为准重新框选；再点其他位置可随时切换。仍不行就稍微拉远手机让纸边露出桌面，或拖动四个角点手动微调。</p>
       <p><b>框选精度是多少？</b>固定为高精度自动识别：框紧贴纸边、容差低，追求准确框选。若个别纸张边缘被裁掉，可稍拉远手机让纸边露出来，或拖动角点手动微调。</p>
       <p><b>识别不到怎么办？</b>稍微拉远手机，让纸张四周露出一点桌面背景，识别会大幅变准；也可点按纸张位置指定识别，或拖动四个角点手动框选。</p>
@@ -867,7 +867,7 @@ const precLevel='high';
 function precNum(){return 0;}
 /* UI 层参数（主线程用；引擎参数见 precParams，随消息传入 Worker） */
 const PREC_UI={
-  high:{padWait:700,minScore:0.45,refineSide:560,label:'高精度',tip:'高精度：框贴纸边，边缘信息可能被裁掉'}
+  high:{padWait:700,minScore:0.40,refineSide:560,label:'高精度',tip:'高精度：框贴纸边，边缘信息可能被裁掉'}
 };
 function precCfg(){return PREC_UI.high;}
 
@@ -1215,7 +1215,7 @@ function scoreQuad(P,pts,gray,w,h,sym){
   if(score<0.25)return 0;
   return score;
 }
-function evalComp(compIdx,gray,w,h){
+function evalComp(compIdx,gray,w,h,mag){
   const pts=[];
   for(let i=0;i<compIdx.length;i+=2){
     const j=compIdx[i];
@@ -1232,9 +1232,13 @@ function evalComp(compIdx,gray,w,h){
   /* 角点吸附到边缘凸包支持点，框角贴回纸角 */
   const snap=snapQuadToHull(poly,hull);
   if(snap!==poly&&validQuad(snap,w,h)&&scoreQuad(snap,pts,gray,w,h)>=scoreQuad(poly,pts,gray,w,h))poly=snap;
-  const sc=scoreQuad(poly,pts,gray,w,h);
+  const oq=orderQuad(poly);
+  let sc=scoreQuad(oq,pts,gray,w,h);
+  /* v3.2：有梯度图时按页边留白加权——Canny 最强的连通块常是文字区，
+     文本框四边内侧全是笔画（无留白），压其分让真纸面组件胜出 */
+  if(sc>0&&mag)sc*=0.55+0.45*cvBlankMargin(oq,mag,w,h);
   if(sc<=0)return null;
-  return{quad:orderQuad(poly),score:sc};
+  return{quad:oq,score:sc};
 }
 function padQuad(P,ratio,w,h){
   let cx=0,cy=0;
@@ -1252,7 +1256,7 @@ function padQuad(P,ratio,w,h){
   }
   return out;
 }
-function cvDetect(gray,w,h){
+function cvDetect(gray,w,h,mag){
   const bl=cvBlur(gray,w,h);
   const sd=cvSobel(bl,w,h);
   const nms=cvNMS(sd.mag,sd.dir,w,h);
@@ -1262,16 +1266,16 @@ function cvDetect(gray,w,h){
   const comps=cvComponents(edges,w,h,Math.max(40,(w*h/220)|0),6);
   let best=null;
   for(let i=0;i<comps.length;i++){
-    const r=evalComp(comps[i],gray,w,h);
+    const r=evalComp(comps[i],gray,w,h,mag||sd.mag);
     if(r&&(!best||r.score>best.score))best=r;
   }
   if(!best&&comps.length>=2){
     const merged=comps[0].concat(comps[1]||[],comps[2]||[]);
-    const r=evalComp(merged,gray,w,h);
+    const r=evalComp(merged,gray,w,h,mag||sd.mag);
     if(r)best=r;
   }
   if(!best)return{found:false,score:0};
-  return{found:true,quad:padQuad(best.quad,0.015,w,h),score:best.score};
+  return{found:true,quad:orderQuad(best.quad),score:best.score};
 }
 /* ================================================================
    主检测：白色区域分割（魔术棒思路）
@@ -1377,11 +1381,11 @@ function orderQuad(P){
   const st=cr>=0?1:3;
   return[P[s],P[(s+st)%4],P[(s+2*st)%4],P[(s+3*st)%4]];
 }
-function cvDetectMask(gray,w,h,level){
+function cvDetectMask(gray,norm,w,h,level){
   const N=w*h;
   function otsuT(){
     const hist=new Uint32Array(256);
-    for(let i=0;i<N;i++)hist[gray[i]]++;
+    for(let i=0;i<N;i++)hist[norm[i]]++;
     let sum=0;for(let j=0;j<256;j++)sum+=j*hist[j];
     let sumB=0,wB=0,best=-1,t=127;
     for(let k=0;k<256;k++){
@@ -1402,7 +1406,9 @@ function cvDetectMask(gray,w,h,level){
   function runAt(thr){
     mask.fill(0);vis.fill(0);lbl.fill(0);
     let bright=0;
-    for(let i=0;i<N;i++){if(gray[i]>thr){mask[i]=1;bright++;}}
+    /* v3.2：在光照归一图上取亮区——阴影把纸压暗/把桌面照亮的场景，
+       归一后纸-桌材质对比恢复，分割边界不再被影子推偏 */
+    for(let i=0;i<N;i++){if(norm[i]>thr){mask[i]=1;bright++;}}
     const br=bright/N;
     if(br<0.05||br>0.965)return null;
     /* 从边界洪泛标记"外部"，未被标记的暗像素 = 纸内字迹孔洞 → 填充 */
@@ -1497,7 +1503,7 @@ function cvDetectMask(gray,w,h,level){
     if(!quad)quad=[{x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}];
     const sc=scoreQuad(quad,sample,gray,w,h);
     if(sc<=0)return null;
-    return{quad:padQuad(orderQuad(quad),precParams(level===undefined?1:level).pad,w,h),score:sc};
+    return{quad:orderQuad(quad),score:sc};
   }
   const t0=otsuT();
   if(t0<55||t0>245)return null;
@@ -1727,7 +1733,6 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
     if(sc<=0)return null;
     return{quad:orderQuad(quad),score:sc};
   }
-  const pad2=Math.max(0.008,precParams(level===undefined?1:level).pad*2);
   /* ---- 6. 候选A：分类管线选中块（自动模式的常规结果） ---- */
   let candA=null;
   if(chosen){
@@ -1735,7 +1740,7 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
     let cn=0;
     for(let i=0;i<N;i++){if(lbl[i]===chosen){regA[i]=1;cn++;}}
     const f=fitRegion(regA,cn);
-    if(f)candA={found:true,quad:padQuad(f.quad,pad2,w,h),score:f.score,chromatic:chromaMag>=0.025};
+    if(f)candA={found:true,quad:f.quad,score:f.score,chromatic:chromaMag>=0.025};
   }
   if(!seed)return candA;
   /* ---- 7. 候选B（点选时）：种子生长管线——从点选处生长，只含点选目标 ---- */
@@ -1799,7 +1804,7 @@ function cvDetectColor(rgba,gray,w,h,seed,level){
       /* 生长结果与分类结果面积接近或更紧时优先（双确认/点选更精确）；
          明显更大=生长顺着阴影爬进了邻近背景（低色差泄漏），退回分类管线 */
       if(f&&f.score>=0.40){
-        const candB={found:true,quad:padQuad(f.quad,pad2,w,h),score:f.score,chromatic:chromaMag>=0.025};
+        const candB={found:true,quad:f.quad,score:f.score,chromatic:chromaMag>=0.025};
         if(!candA)return candB;
         return quadArea(candB.quad)<=quadArea(candA.quad)*1.6?candB:candA;
       }
@@ -1842,7 +1847,221 @@ function cvEdgeSupport(P,mag,w,h){
   }
   return tot?sup/tot:0;
 }
-function cvDetectTop(gray,w,h,seed,level,sd){
+/* ================================================================
+   v3.2 纸面级精修与打分：把「框到一块亮区/边缘区」升级为「框到整张纸」
+   ① cvIllumNorm 光照归一化——积分图局部均值把阴影/渐变光照拉平，
+     影子下的纸-桌对比度恢复，分割不再被影子切去一角或扩大范围；
+   ② cvBlankMargin 页边留白判定——真纸张边界内侧是空白带（低梯度），
+     「框成文字部分」的内侧带必切过文字行（高梯度），据此鉴别文本框；
+   ③ cvEdgeExpand 逐边外扩搜索——沿法线找比当前边界更强的真实边缘，
+     框到文本块/切入纸内时把四边推到真实纸边（比盲目按 A4 尺寸外扩
+     可靠：外扩目标永远是"检测出来的纸边"，A4 只作比例校验）；
+   ④ cvRegularizeAspect 矩形正则化——候选已近矩形且纵横比贴近标准
+     纸型（A4/A3/B5/Letter/方纸）时，按保面积+保形心+保主方向拟合
+     标准比例矩形并与观测角点融合，抑制"框小一圈/多一圈"，逐帧更稳；
+   ⑤ cvPageScore 统一打分——基础分 × 边缘支持度 × 页边留白 × 纸型比例。
+   ================================================================ */
+function cvIllumNorm(gray,w,h){
+  const N=w*h,iw=w+1;
+  const II=new Int32Array(iw*(h+1));
+  for(let y=0;y<h;y++){
+    let rs=0;
+    const o=y*iw,ro=o+iw;
+    for(let x=0;x<w;x++){
+      rs+=gray[y*w+x];
+      II[ro+x+1]=II[o+x+1]+rs;
+    }
+  }
+  const meanL=II[iw*(h+1)-1]/N;
+  const r=Math.max(8,(Math.min(w,h)*0.42)|0);
+  const fl=Math.max(30,meanL*0.38);
+  const out=new Uint8Array(N);
+  for(let y=0;y<h;y++){
+    const y0=Math.max(0,y-r),y1=Math.min(h-1,y+r);
+    const r0=y0*iw,r1=(y1+1)*iw;
+    const hh=(y1-y0+1);
+    for(let x=0;x<w;x++){
+      const x0=Math.max(0,x-r),x1=Math.min(w-1,x+r);
+      const lm=(II[r1+x1+1]-II[r0+x1+1]-II[r1+x0]+II[r0+x0])/(hh*(x1-x0+1));
+      const v=gray[y*w+x]*meanL/(lm>fl?lm:fl);
+      out[y*w+x]=v>255?255:v;
+    }
+  }
+  return out;
+}
+/* 页边留白判定：四边各自在内侧带宽（约 5% 短边）里取最大梯度，
+   ≥60% 采样线都安静(<46) 记该边「留白」；返回留白边占比 0~1 */
+function cvBlankMargin(P,mag,w,h){
+  const D=Math.min(w,h);
+  const bw=Math.max(3,(D*0.05)|0);
+  const cx=(P[0].x+P[1].x+P[2].x+P[3].x)/4,cy=(P[0].y+P[1].y+P[2].y+P[3].y)/4;
+  let blank=0;
+  for(let i=0;i<4;i++){
+    const a=P[i],b=P[(i+1)%4];
+    const ex=b.x-a.x,ey=b.y-a.y;
+    const L=Math.sqrt(ex*ex+ey*ey)||1e-9;
+    let nx=-(ey/L),ny=ex/L;
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    if((cx-mx)*nx+(cy-my)*ny<0){nx=-nx;ny=-ny;}   /* 法线指向内侧 */
+    let hit=0,tot=0;
+    for(let k=1;k<=9;k++){
+      const t=k/10;
+      const px=a.x+ex*t,py=a.y+ey*t;
+      let peak=0,n2=0;
+      for(let d=2;d<=bw;d++){
+        const qx=(px+nx*d)|0,qy=(py+ny*d)|0;
+        if(qx<1||qy<1||qx>=w-1||qy>=h-1)continue;
+        const m=mag[qy*w+qx];
+        if(m>peak)peak=m;
+        n2++;
+      }
+      if(n2<2)continue;
+      tot++;
+      if(peak<46)hit++;
+    }
+    if(tot&&hit/tot>=0.6)blank++;
+  }
+  return blank/4;
+}
+/* 两直线交点（点+方向式） */
+function cvLineInt(px,py,ux,uy,qx,qy,vx,vy){
+  const d=ux*vy-uy*vx;
+  if(Math.abs(d)<1e-9)return null;
+  const t=((qx-px)*vy-(qy-py)*vx)/d;
+  return{x:px+ux*t,y:py+uy*t};
+}
+/* 逐边边缘搜索：沿外法线（上限 22% 边长）与小段内法线找比当前边界
+   强 35% 以上的真实边缘峰值，3 条探测线取中位偏移，四边平移后
+   相邻边线求交重建角点。用于文本框外扩到纸边、切入纸内拉回纸边 */
+function cvEdgeExpand(P,mag,w,h){
+  const D=Math.max(w,h);
+  const cx=(P[0].x+P[1].x+P[2].x+P[3].x)/4,cy=(P[0].y+P[1].y+P[2].y+P[3].y)/4;
+  const sides=[];
+  let anyMove=false;
+  for(let i=0;i<4;i++){
+    const a=P[i],b=P[(i+1)%4];
+    const ex=b.x-a.x,ey=b.y-a.y;
+    const L=Math.sqrt(ex*ex+ey*ey)||1e-9;
+    const ux=ex/L,uy=ey/L;
+    let nx=-uy,ny=ux;
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    if((cx-mx)*nx+(cy-my)*ny<0){nx=-nx;ny=-ny;}   /* n=内向 */
+    const maxOut=Math.min(L*0.22,D*0.12),maxIn=L*0.05;
+    const votes=[];
+    for(let ti=0;ti<3;ti++){
+      const t=0.28+0.22*ti;
+      const px=a.x+ex*t,py=a.y+ey*t;
+      const sm=function(o){
+        let s=0,c2=0;
+        for(let d2=-1;d2<=1;d2++){
+          const qx=Math.round(px-nx*(o+d2)),qy=Math.round(py-ny*(o+d2));
+          if(qx<1||qy<1||qx>=w-1||qy>=h-1)continue;
+          s+=mag[qy*w+qx];c2++;
+        }
+        return c2?s/c2:0;
+      };
+      const b0=sm(0);
+      let pk=b0,po=0;
+      for(let o=2;o<=maxOut;o++){const s2=sm(o);if(s2>pk){pk=s2;po=o;}}
+      for(let o=-2;o>=-maxIn;o--){const s2=sm(o);if(s2>pk){pk=s2;po=o;}}
+      if(pk>Math.max(40,b0*1.35))votes.push(po);
+    }
+    let shift=0;
+    if(votes.length>=2){
+      votes.sort(function(m,n){return m-n;});
+      shift=votes[votes.length>>1];
+    }
+    if(Math.abs(shift)>=2)anyMove=true;
+    sides.push({ax:a.x,ay:a.y,ux:ux,uy:uy,nx:nx,ny:ny,shift:shift});
+  }
+  if(!anyMove)return null;
+  const out=[];
+  for(let i=0;i<4;i++){
+    const s=sides[i],s2=sides[(i+3)%4];
+    const o1x=s.ax-s.nx*s.shift,o1y=s.ay-s.ny*s.shift;
+    const o2x=s2.ax-s2.nx*s2.shift,o2y=s2.ay-s2.ny*s2.shift;
+    const c=cvLineInt(o1x,o1y,s.ux,s.uy,o2x,o2y,s2.ux,s2.uy);
+    if(!c)return null;
+    out.push(c);
+  }
+  const a0=quadArea(P),a1=quadArea(out);
+  if(a1<a0*0.55||a1>a0*1.6)return null;
+  if(!validQuadMask(out,w,h))return null;
+  return out;
+}
+/* 纵横比与标准纸型（A/B 系列全是 √2 比）的贴近度 0~1 */
+function cvAspectScore(P){
+  const d=function(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));};
+  const r=((d(P[0],P[1])+d(P[3],P[2]))/((d(P[0],P[3])+d(P[1],P[2]))||1e-9));
+  const rs=[0.7071,1.4142,0.7727,1.2941,0.75,1.3333,1.0];
+  let be=1e9;
+  for(let i=0;i<rs.length;i++){
+    const e=Math.abs(Math.log(r/rs[i]));
+    if(e<be)be=e;
+  }
+  return be>=0.16?0:1-be/0.16;
+}
+/* 矩形正则化：四角近 90° 且比例贴近标准纸型（对数差<10%）时，
+   保面积/形心/主方向拟合标准矩形，与观测角点 55% 融合（角点位移
+   超 5% 对角线或结果退化则放弃） */
+function cvRegularizeAspect(P,w,h){
+  for(let i=0;i<4;i++){
+    const a=P[(i+3)%4],b=P[i],c=P[(i+1)%4];
+    const v1x=a.x-b.x,v1y=a.y-b.y,v2x=c.x-b.x,v2y=c.y-b.y;
+    const l1=Math.sqrt(v1x*v1x+v1y*v1y)||1e-9,l2=Math.sqrt(v2x*v2x+v2y*v2y)||1e-9;
+    const ang=Math.acos(Math.max(-1,Math.min(1,(v1x*v2x+v1y*v2y)/(l1*l2))))*57.29578;
+    if(ang<78||ang>102)return null;
+  }
+  const d=function(a,b){return Math.sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));};
+  const r=((d(P[0],P[1])+d(P[3],P[2]))/((d(P[0],P[3])+d(P[1],P[2]))||1e-9));
+  const rs=[0.7071,1.4142,0.7727,1.2941,0.75,1.3333,1.0];
+  let r0=0,be=1e9;
+  for(let i=0;i<rs.length;i++){
+    const e=Math.abs(Math.log(r/rs[i]));
+    if(e<be){be=e;r0=rs[i];}
+  }
+  if(be>0.10)return null;
+  const A=quadArea(P);
+  const W0=Math.sqrt(A*r0),H0=Math.sqrt(A/r0);
+  let vx=Math.cos(Math.atan2(P[1].y-P[0].y,P[1].x-P[0].x))+Math.cos(Math.atan2(P[2].y-P[3].y,P[2].x-P[3].x));
+  let vy=Math.sin(Math.atan2(P[1].y-P[0].y,P[1].x-P[0].x))+Math.sin(Math.atan2(P[2].y-P[3].y,P[2].x-P[3].x));
+  const vl=Math.sqrt(vx*vx+vy*vy)||1e-9;vx/=vl;vy/=vl;
+  const cx=(P[0].x+P[1].x+P[2].x+P[3].x)/4,cy=(P[0].y+P[1].y+P[2].y+P[3].y)/4;
+  const hx=vx*W0/2,hy=vy*W0/2,px=-vy*H0/2,py=vx*H0/2;
+  const R=[{x:cx-hx-px,y:cy-hy-py},{x:cx+hx-px,y:cy+hy-py},{x:cx+hx+px,y:cy+hy+py},{x:cx-hx+px,y:cy-hy+py}];
+  const diag=Math.sqrt(w*w+h*h);
+  const out=[];
+  for(let i=0;i<4;i++){
+    const ox=P[i].x+(R[i].x-P[i].x)*0.55,oy=P[i].y+(R[i].y-P[i].y)*0.55;
+    if(Math.sqrt((ox-P[i].x)*(ox-P[i].x)+(oy-P[i].y)*(oy-P[i].y))>diag*0.05)return null;
+    out.push({x:ox,y:oy});
+  }
+  if(!validQuadMask(out,w,h))return null;
+  return out;
+}
+/* 纸面级统一打分：边缘精修（外扩有收益才用）→ 比例正则化 → 支持度/留白/比例合成。
+   intent=点选等用户意图结果：不做留白惩罚（用户点的就是它） */
+function cvPageScore(q,base,mag,gray,w,h,intent){
+  let Q=q;
+  let sup=mag?cvEdgeSupport(Q,mag,w,h):0.5;
+  if(mag){
+    const ex=cvEdgeExpand(Q,mag,w,h);
+    if(ex){
+      const s2=cvEdgeSupport(ex,mag,w,h);
+      if(s2>sup+0.12){Q=ex;sup=s2;}
+    }
+  }
+  const reg=cvRegularizeAspect(Q,w,h);
+  if(reg){
+    const s3=mag?cvEdgeSupport(reg,mag,w,h):sup;
+    if(s3>=sup-0.10){Q=reg;if(s3>sup)sup=s3;}
+  }
+  const blank=mag?cvBlankMargin(Q,mag,w,h):0.7;
+  const asp=cvAspectScore(Q);
+  const bf=intent?1:(0.5+0.5*blank);
+  return{quad:Q,sup:sup,blank:blank,asp:asp,ps:base*(0.25+0.75*sup)*bf*(0.9+0.1*asp)};
+}
+function cvDetectTop(gray,norm,w,h,seed,level,sd){
   const mag=sd?sd.mag:null;
   if(!mag)return null;
   const N=w*h;
@@ -1852,7 +2071,7 @@ function cvDetectTop(gray,w,h,seed,level,sd){
   const fy0=Math.max(0,(sy-hh)|0),fy1=Math.min(h,sy+hh);
   const fx0=Math.max(0,(sx-hw)|0),fx1=Math.min(w,sx+hw);
   const samp=[];
-  for(let y=fy0;y<fy1;y+=2)for(let x=fx0;x<fx1;x+=2)samp.push(gray[y*w+x]);
+  for(let y=fy0;y<fy1;y+=2)for(let x=fx0;x<fx1;x+=2)samp.push(norm[y*w+x]);
   if(samp.length<20)return null;
   samp.sort(function(a,b){return a-b;});
   const L0=samp[samp.length>>1];
@@ -1868,15 +2087,15 @@ function cvDetectTop(gray,w,h,seed,level,sd){
     let sp=0;
     for(let y=fy0;y<fy1;y+=2)for(let x=fx0;x<fx1;x+=2){
       const i=y*w+x;
-      if(!mask[i]&&Math.abs(gray[i]-L0)<=tol&&mag[i]<=barrier){mask[i]=1;stk[sp++]=i;}
+      if(!mask[i]&&Math.abs(norm[i]-L0)<=tol&&mag[i]<=barrier){mask[i]=1;stk[sp++]=i;}
     }
     if(sp<8)return null;
     while(sp){
       const u=stk[--sp],uy=(u/w)|0,ux=u-uy*w;
-      if(ux>0){const n=u-1;if(!mask[n]&&Math.abs(gray[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
-      if(ux<w-1){const n=u+1;if(!mask[n]&&Math.abs(gray[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
-      if(uy>0){const n=u-w;if(!mask[n]&&Math.abs(gray[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
-      if(uy<h-1){const n=u+w;if(!mask[n]&&Math.abs(gray[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
+      if(ux>0){const n=u-1;if(!mask[n]&&Math.abs(norm[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
+      if(ux<w-1){const n=u+1;if(!mask[n]&&Math.abs(norm[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
+      if(uy>0){const n=u-w;if(!mask[n]&&Math.abs(norm[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
+      if(uy<h-1){const n=u+w;if(!mask[n]&&Math.abs(norm[n]-L0)<=tol&&mag[n]<=barrier){mask[n]=1;stk[sp++]=n;}}
     }
     /* 字迹/印章/表格=未吸收的封闭孔洞：边界洪泛标「外部」后回填 */
     vis.fill(0);
@@ -1898,6 +2117,10 @@ function cvDetectTop(gray,w,h,seed,level,sd){
       if(py>0&&!mask[p-w]&&!vis[p-w]){vis[p-w]=1;stk[sp++]=p-w;}
       if(py<h-1&&!mask[p+w]&&!vis[p+w]){vis[p+w]=1;stk[sp++]=p+w;}
     }
+    /* 边界洪泛不可达的 !mask 像素 = 纸内封闭孔洞（字迹/印章/表格）→ 并入纸面。
+       v3.1 此行缺失：文字密集的纸被生长排除文字区后填充率跌破 0.40 门槛，
+       顶层纸管线整条退化为 null（叠纸场景顶张识别不稳的隐藏元凶） */
+    for(let q=0;q<N;q++){if(!mask[q]&&!vis[q])mask[q]=1;}
     let x0=w,y0=h,x1=-1,y1=-1,rn=0;
     for(let q=0;q<N;q++)if(mask[q]){
       rn++;
@@ -1967,30 +2190,38 @@ function cvDetectTop(gray,w,h,seed,level,sd){
     if(r2&&(!r||r2.score>r.score*0.9))r=r2;
   }
   if(!r)return null;
-  const pad=precParams(level===undefined?1:level).pad;
-  return{found:true,quad:padQuad(orderQuad(r.quad),pad,w,h),score:r.score,support:r.support};
+  return{found:true,quad:orderQuad(r.quad),score:r.score,support:r.support};
 }
-/* 总入口（v2.8）：入参改为整帧 RGBA（彩色路径需要颜色信息），灰度在内部派生
+/* 总入口（v3.2）：入参为整帧 RGBA，灰度在内部派生。
+   v3.2 坐标约定：各管线全部返回「像素坐标 quad」，归一化到 [0,1]
+   只在收尾 padQuad 一步完成——v3.1 曾在管线内提前归一化，导致支持度
+   按归一化坐标在像素梯度图上采样、mask 候选支持度恒错，仲裁被扭曲。
    编排优先级：
-   ① v3.1 顶层纸分割先跑：叠放纸张只框最上张；点选落点是白纸时生长结果
+   ① 顶层纸分割先跑：叠放纸张只框最上张；点选落点是白纸时生长结果
       即用户意图，直接采用；
-   ② 彩色分割：用户点选（seed）或前景明显彩色（红头文件/彩封/选票等
-      非白纸场景）且得分可用 → 直接采用（中央物品优先，且先于白纸分割的
-      高分早退判断——反光假框往往带高分）；
-   ③ 白色分割为主、Canny 为辅按分数竞争（v2.7 白纸行为不变）；
-   ④ 存在顶层纸结果时，其余候选须按「周长边缘支持度」折算后仍胜出
-      （叠纸场景白区并集大框常带虚高分，周长支持度是唯一鉴别器）；
-   fast=实时取景轮：已有可用结果时跳过 Canny（调用方隔帧放行，平均耗时近乎减半） */
+   ② 彩色分割：点选（用户意图）直接采用；前景明显彩色且边界真实
+      （支持度达标）也直接采用；
+   ③ 白色分割（光照归一）、Canny 边缘法按 v3.2 纸面分竞争：
+      纸面分 = 基础分 × 周长支持度 × 页边留白 × 纸型比例；
+   ④ 叠纸：顶张框嵌在并集大框内且边界真实 → 取顶张；
+   ⑤ 文本框陷阱：胜者留白差（框到文字部分）且存在包住它、边界真实的
+      外层候选 → 取外层（白纸中的文字永远不是扫描目标，整张纸才是）。
+   fast=实时取景轮：已有可用结果时跳过 Canny（调用方隔帧放行） */
 function cvDetectAll(rgba,w,h,level,fast,seed){
   const lv=level===undefined?1:level;
   const gray=cvGray(rgba,w,h);
   const P=precParams(lv);
-  /* v3.1 共享梯度图：顶层纸分割与候选框支持度共用一次模糊+Sobel */
+  /* 共享梯度图（顶层纸/支持度/留白共用）+ 光照归一图（阴影鲁棒） */
   let sd=null;
   try{sd=cvSobel(cvBlur(gray,w,h),w,h);}catch(e){sd=null;}
-  let top=null;
-  try{top=cvDetectTop(gray,w,h,seed,lv,sd);}catch(e){top=null;}
-  const topF=(top&&top.found&&top.quad)?top:null;
+  let norm=null;
+  try{norm=cvIllumNorm(gray,w,h);}catch(e){norm=null;}
+  if(!norm)norm=gray;
+  let topRaw=null;
+  try{
+    const top=cvDetectTop(gray,norm,w,h,seed,lv,sd);
+    if(top&&top.found&&top.quad)topRaw=top;
+  }catch(e){topRaw=null;}
   function seedPaper(){
     if(!seed)return false;
     /* 点选处 ±3px 块中位数判断（单像素易点在字迹/反光上误判） */
@@ -2007,19 +2238,16 @@ function cvDetectAll(rgba,w,h,level,fast,seed){
     const L=med(Ls),cr=med(CRs),cg=med(CGs);
     return L>=150&&Math.sqrt((cr-0.3333)*(cr-0.3333)+(cg-0.3333)*(cg-0.3333))<=0.10;
   }
-  if(seed&&topF&&topF.score>=0.35&&seedPaper())return topF;
-  let colorR=null;
-  try{colorR=cvDetectColor(rgba,gray,w,h,seed,lv);}catch(e){colorR=null;}
-  if(colorR&&colorR.found&&colorR.quad&&colorR.score>=0.40){
-    /* 点选=用户指定意图；前景明显彩色=非白纸场景，按中央物品优先原则直接采用，
-       且必须先于白纸分割的高分早退判断（反光假框常带高分） */
-    if(seed||colorR.chromatic)return colorR;
+  /* v3.2 纸面级打分：候选统一做 边缘精修→比例正则化→支持度/留白/比例合成 */
+  const mag=sd?sd.mag:null;
+  function pageify(r,intent){
+    const p=cvPageScore(r.quad,r.score,mag,gray,w,h,intent?1:0);
+    return{found:true,quad:p.quad,score:p.ps,sup:p.sup,blank:p.blank,raw:r.score};
   }
-  function supportOf(q){return sd?cvEdgeSupport(q,sd.mag,w,h):0.5;}
-  function comb(r){return r.score*(0.25+0.75*((r.support!==undefined&&r.support!==null)?r.support:supportOf(r.quad)));}
-  /* 嵌套判定：inner 周长采样点落在外框内的占比≥85%。
-     叠纸场景顶张框必嵌在白区并集大框内部——嵌套时优先取内层
-     （相机对准的就是最上面那张，两张纸不可能当一张扫） */
+  function finish(r){
+    if(!r)return{found:false,score:0};
+    return{found:true,quad:padQuad(orderQuad(r.quad),P.pad,w,h),score:r.score};
+  }
   function nestedIn(inner,outer){
     let inn=0,tot=0;
     for(let i=0;i<4;i++){
@@ -2032,44 +2260,65 @@ function cvDetectAll(rgba,w,h,level,fast,seed){
     }
     return tot>0&&inn/tot>=0.85;
   }
-  let best=null;
+  const topF=topRaw?pageify(topRaw,!!seed):null;
+  if(seed&&topRaw&&topRaw.score>=0.35&&seedPaper())return finish(topF);
+  let colorR=null;
+  try{colorR=cvDetectColor(rgba,gray,w,h,seed,lv);}catch(e){colorR=null;}
+  const colorOk=colorR&&colorR.found&&colorR.quad&&colorR.score>=0.40;
+  const colorF=colorOk?pageify(colorR,!!seed):null;
+  if(seed&&colorF)return finish(colorF);
+  if(colorF&&colorR.chromatic&&colorF.sup>=0.30)return finish(colorF);
+  /* 候选竞争 */
+  const cands=[];
+  if(topF)cands.push(topF);
+  if(colorF)cands.push(colorF);
+  let mF=null;
   try{
-    const m=cvDetectMask(gray,w,h,lv);
-    if(m&&m.found&&m.quad){
-      best=m;
-      /* 提速：分割法已达当前档位置信线且无点选时不再跑彩色/Canny 全流程；
-         v3.1：白区分割须先按支持度折算胜过顶层纸结果、且未嵌套住顶层纸
-         （嵌套=叠纸，必须取内层）才允许早退 */
-      if(m.score>=P.skipCanny&&!seed){
-        if(!topF)return best;
-        if(comb(m)>=comb(topF)*0.92&&!nestedIn(topF.quad,best.quad))return best;
-      }
-    }
+    const m=cvDetectMask(gray,norm,w,h,lv);
+    if(m&&m.found&&m.quad)mF=pageify(m,false);
   }catch(e){}
-  if(colorR&&colorR.found&&colorR.quad&&colorR.score>=0.40){
-    /* 前景接近白色=普通白纸场景：与白纸分割比分接近才采用（保持 v2.7 行为） */
-    if(!best||colorR.score>=best.score-0.05)return colorR;
-  }
-  if(!(fast&&best)){
+  if(!mF){
+    /* 光照归一分割失败（极端明暗/重度遮挡场景阈值漂移）→ 退回灰度分割，
+       保证 v3.1 已能识别的困难场景不回退 */
     try{
-      const c=cvDetect(gray,w,h);
-      if(c&&c.found&&c.quad&&(!best||c.score>best.score))best=c;
+      const m=cvDetectMask(gray,gray,w,h,lv);
+      if(m&&m.found&&m.quad)mF=pageify(m,false);
     }catch(e){}
   }
-  if(!best&&topF)return topF;
-  if(best&&topF){
-    if(nestedIn(topF.quad,best.quad)&&!nestedIn(best.quad,topF.quad))best=topF;
-    else if(comb(topF)>comb(best))best=topF;
+  if(mF)cands.push(mF);
+  /* Canny 辅助：fast 轮有候选即跳过；白区已高置信且无点选、且未被
+     叠纸嵌套关系否决时也跳过（省最重的一步） */
+  const earlyCanny=mF&&mF.raw>=P.skipCanny&&mF.score>=0.5&&!seed&&(!topF||!nestedIn(topF.quad,mF.quad));
+  if(!(fast&&cands.length)&&!earlyCanny){
+    let c=null;
+    try{c=cvDetect(gray,w,h,mag);}catch(e){}
+    if(c&&c.found&&c.quad)cands.push(pageify(c,false));
   }
-  if(best)return best;
-  return{found:false,score:0};
+  if(!cands.length)return{found:false,score:0};
+  let best=null;
+  for(let i=0;i<cands.length;i++)if(!best||cands[i].score>best.score)best=cands[i];
+  /* 叠纸：顶张框嵌在并集大框内、其边界真实完整、分数不掉队时才取顶张——
+     白区分割已选中块框出顶张（光照归一后纸间阴影线天然分隔两纸）时，
+     分数悬殊的劣质顶张候选不得凭嵌套关系抢走结果 */
+  if(topF&&best!==topF&&nestedIn(topF.quad,best.quad)&&!nestedIn(best.quad,topF.quad)
+     &&topF.score>=0.28&&topF.score>=best.score*0.55
+     &&(topF.sup>=0.45||best.blank<0.5))best=topF;
+  /* 文本框陷阱：胜者留白差且存在包住它、留白好、边界真实的外层 → 取外层 */
+  if(best.blank<0.55){
+    for(let i=0;i<cands.length;i++){
+      const o=cands[i];
+      if(o===best)continue;
+      if(o.blank>=0.6&&o.sup>=0.42&&nestedIn(best.quad,o.quad)){best=o;break;}
+    }
+  }
+  return finish(best);
 }
 
 /* ================= Worker 封装 ================= */
 let cvWorker=null,wSeq=0;
 const wPending=new Map();
 try{
-  const fns=[precParams,cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,validQuadMask,fillRate,quadContrast,quadContrastSym,scoreQuad,evalComp,padQuad,snapQuadToHull,minAreaRect,orderQuad,cvDetect,cvDetectMask,cvMedian3,cvDetectColor,cvEdgeSupport,cvDetectTop,cvDetectAll];
+  const fns=[precParams,cvGray,cvBlur,cvSobel,cvNMS,cvAutoCanny,cvHysteresis,cvComponents,cvHull,cvDP,cvDPClosed,cvReduceTo4,quadArea,polyPerimeter,pointInQuad,validQuad,validQuadMask,fillRate,quadContrast,quadContrastSym,scoreQuad,evalComp,padQuad,snapQuadToHull,minAreaRect,orderQuad,cvDetect,cvDetectMask,cvMedian3,cvDetectColor,cvEdgeSupport,cvIllumNorm,cvBlankMargin,cvLineInt,cvEdgeExpand,cvAspectScore,cvRegularizeAspect,cvPageScore,cvDetectTop,cvDetectAll];
   const src=fns.map(f=>f.toString()).join('\n')+
     '\nonmessage=function(e){var d=e.data;try{var r=cvDetectAll(new Uint8Array(d.buf),d.w,d.h,d.level,d.fast,d.seed);postMessage({id:d.id,found:r.found,quad:r.quad||null,score:r.score||0});}catch(err){postMessage({id:d.id,found:false,score:0});}};';
   cvWorker=new Worker(URL.createObjectURL(new Blob([src],{type:'application/javascript'})));
@@ -2318,6 +2567,13 @@ function detectContentQuad(cv){
     let m=0;for(let i=0;i<len;i++)if(arr[i]>m)m=arr[i];
     const t=m*0.10;let a=0,b=len-1;
     while(a<len&&arr[a]<t)a++;while(b>0&&arr[b]<t)b--;
+    /* v3.2 空白页边外扩：文字块边界外通常是纸的留白带（能量接近 0），
+       一路外扩到能量回升（纸边）或上限，避免把整页识别成文字部分 */
+    const q=m*0.03,cap=(len*0.10)|0;
+    let run=0;
+    while(a>0&&run<cap){if(arr[a-1]<q){a--;run++;}else break;}
+    run=0;
+    while(b<len-1&&run<cap){if(arr[b+1]<q){b++;run++;}else break;}
     return[a,b];
   };
   const[x0,x1]=cut(colE,w),[y0,y1]=cut(rowE,h);
@@ -3183,8 +3439,10 @@ function quadDist(a,b){
 }
 async function edgeLoop(){
   if(!Edge.active)return;
-  /* 提速：未锁定时提高检测频率更快锁定绿框；锁定稳定后降频，省电且防框抖 */
-  Edge.timer=setTimeout(edgeLoop,Edge.confident?320:140);
+  /* 提速：未锁定时提高检测频率更快锁定绿框；锁定稳定后降频，省电且防框抖
+     v3.2：120/240ms（原 140/320），分析分辨率 384 宽（原 320）——对齐主流
+     扫描软件的锁框节奏，边界也更贴 */
+  Edge.timer=setTimeout(edgeLoop,Edge.confident?240:120);
   if(Edge.busy||Edge.manual)return;
   const v=$('#camVideo');
   if(!stream||document.hidden||!v.videoWidth)return;
@@ -3193,7 +3451,7 @@ async function edgeLoop(){
   Edge.busy=true;
   try{
     edgeInitSmall();
-    const W=320,H=Math.max(24,Math.round(320*cr.sh/cr.sw));
+    const W=384,H=Math.max(24,Math.round(384*cr.sh/cr.sw));
     Edge.small.width=W;Edge.small.height=H;
     Edge.smallCtx.drawImage(v,cr.sx,cr.sy,cr.sw,cr.sh,0,0,W,H);
     const img=Edge.smallCtx.getImageData(0,0,W,H);
@@ -3211,7 +3469,9 @@ async function edgeLoop(){
 function applyDetect(r){
   if(r&&r.found&&r.quad){
     Edge.lost=0;
-    Edge.confident=r.score>=0.5;
+    /* v3.2 分数为 纸面分=基础×支持度×留白×纸型，好纸面典型 0.55~0.75，
+       置信线相应从 0.50 校准到 0.42 */
+    Edge.confident=r.score>=0.42;
     /* 防抖：与当前框差异明显的新目标需连续两帧确认才切换，避免绿框在候选间跳动 */
     const q=orderQuad(r.quad);   /* 统一环路起点，逐帧插值角点才一一对应 */
     if(Edge.target&&quadDist(Edge.target,q)>0.10){
@@ -3798,6 +4058,14 @@ window.__buildReport=function(){
 /* 更新日志：每次更新在最上面加一条 {ver,date,items[]}，
    「诊断与帮助 → 更新日志」分页自动展示，无需改其他代码 */
 const CHANGELOG=[
+  {ver:'3.2',date:'2026-09-29',items:[
+    '识别引擎重构「纸面级锁定」：识别结果不再是"一块亮区/边缘区"，而是经过页边留白校验、周长边缘支持度、标准纸型比例三重打分的"整张纸"，白纸中只框住文字部分的问题根治',
+    '阴影/影子遮挡不再识别错误：新增光照归一化预处理，把画面上的阴影和明暗渐变拉平后再分割，影子压住的纸角、影子旁的桌面都不会再被切进或切出识别范围',
+    '框选偏移/不贴边修正：候选框四边沿法线搜索真实纸张边缘并吸附，框到文字区时自动外扩到纸边；近矩形且比例贴近 A4/A3/B5/Letter 的候选按标准纸型微正则，框小一圈/多一圈的情况明显减少',
+    '修复 v3.1 的坐标空间缺陷：部分管线提前归一化坐标导致支持度采样错位、候选仲裁被扭曲（v3.1 识别不稳的隐藏元凶），现已统一像素坐标计算、收尾一次归一化',
+    '实时识别更流畅：分析分辨率 320→384，检测节奏未锁定 140→120ms、已锁定 320→240ms，锁定更快、跟随更稳',
+    '相册导入兜底识别同样增加空白页边外扩，导入白底照片不再只裁出文字区域'
+  ]},
   {ver:'3.1',date:'2026-09-28',items:[
     '叠放纸张只框最上面一张：新增「顶层纸张分割」引擎——从画面中央（或点选处）带边缘势垒生长，纸间阴影线即天然屏障，配合周长边缘支持度与嵌套关系竞争取优，多张纸叠放时不再把整摞框进去（对齐主流扫描软件效果）',
     '扫描件高清化：新增反锐化掩模出图锐化（增强/灰度重锐、彩色轻锐），文字笔画边缘明显更锐；透视摆正输出上限由 1800px 提升至 2048px，保留更多细节',
