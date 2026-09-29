@@ -4,14 +4,17 @@
    用户数据（IndexedDB / localStorage）不经 Service Worker，更新与缓存清理均不会触碰。
    发新版注意：改动 sw.js 本身（如 CACHE 版本号）浏览器会自动重装；若替换了图标等
    静态资源，请同步把 CACHE 升为 saomiao-v<新版本号>，activate 时会自动清掉旧缓存。 */
-const CACHE = 'saomiao-v3.2';
+const CACHE = 'saomiao-v3.3';
+/* 静态资源带版本参数（?v=3.3）：换图标时 URL 一并变化，浏览器/安装流水线必按
+   新地址联网取新图，杜绝旧图标缓存复现；旧地址缓存随 CACHE 升级整体清除 */
+const V = '3.3';
 const SHELL = [
   './',
   './index.html',
-  './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-maskable-512.png'
+  './manifest.webmanifest?v=' + V,
+  './icon-192.png?v=' + V,
+  './icon-512.png?v=' + V,
+  './icon-maskable-512.png?v=' + V
 ];
 
 self.addEventListener('install', e => {

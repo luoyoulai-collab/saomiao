@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>快扫侠 · 本机扫描仪</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest?v=3.3">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=3.3">
+<link rel="apple-touch-icon" href="icon-192.png?v=3.3">
 <meta name="theme-color" content="#121712">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -333,7 +333,7 @@ nav#actionbar{display:flex;gap:10px;flex:none;padding:10px 14px calc(10px + env(
 
 <script>
 /* ============ 哨兵脚本 ============ */
-window.__VER='3.2';
+window.__VER='3.3';
 window.REPORT={errors:[],fatalShown:false};
 function captureErr(kind,msg){
   try{
@@ -4058,6 +4058,11 @@ window.__buildReport=function(){
 /* 更新日志：每次更新在最上面加一条 {ver,date,items[]}，
    「诊断与帮助 → 更新日志」分页自动展示，无需改其他代码 */
 const CHANGELOG=[
+  {ver:'3.3',date:'2026-09-29',items:[
+    '全新应用图标：上五分之四白色纸张、右下角掀起折角、行楷草书「快扫」二字、下五分之一橘红色横条',
+    '修复安装版换图标被旧缓存卡住的问题：manifest 与图标引用全部带版本参数，浏览器必按新地址取新图，安装到桌面/主屏不会再出现旧图标；已安装的入口在联网打开一次后由浏览器自动更新图标',
+    '主题色与启动画面配色随新图标同步改为白底橘红'
+  ]},
   {ver:'3.2',date:'2026-09-29',items:[
     '识别引擎重构「纸面级锁定」：识别结果不再是"一块亮区/边缘区"，而是经过页边留白校验、周长边缘支持度、标准纸型比例三重打分的"整张纸"，白纸中只框住文字部分的问题根治',
     '阴影/影子遮挡不再识别错误：新增光照归一化预处理，把画面上的阴影和明暗渐变拉平后再分割，影子压住的纸角、影子旁的桌面都不会再被切进或切出识别范围',
